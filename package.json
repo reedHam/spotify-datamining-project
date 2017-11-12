@@ -1,0 +1,22 @@
+{
+  "name": "spotifydatamining",
+  "version": "1.0.0",
+  "description": "Datamining project for CPSC 4310",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/reedHam/spotifyDataminingProject.git"
+  },
+  "author": "Reed Hambrook",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/reedHam/spotifyDataminingProject/issues"
+  },
+  "homepage": "https://github.com/reedHam/spotifyDataminingProject#readme",
+  "dependencies": {
+    "spotify-web-api-node": "^2.5.0"
+  }
+}
