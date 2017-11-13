@@ -17,7 +17,9 @@
   },
   "homepage": "https://github.com/reedHam/spotifyDataminingProject#readme",
   "dependencies": {
+    "lodash": "^4.17.4",
     "promise": "^8.0.1",
-    "spotify-web-api-node": "^2.5.0"
+    "spotify-web-api-node": "^2.5.0",
+    "superagent": "^3.8.1"
   }
 }
