@@ -12,7 +12,7 @@ var spotifyApi = new SpotifyWebApi({
 
 
 var trackJSON = [];
-var genres = ["pop"] // array of genres to loop through // TODO add genres
+var genres = ["pop", "dace pop", "pop rap", "rap", "post-teen pop", "tropical house", "rock", "modern "] // array of genres to loop through // TODO add genres
 // Retrieve access token from SpotifyWebApi endpoint
 spotifyApi.clientCredentialsGrant().then(function(data){
     console.log('The access token expires in ' + data.body['expires_in']);
@@ -23,11 +23,14 @@ spotifyApi.clientCredentialsGrant().then(function(data){
     // Query spotify servers for songs by genre
     spotifyApi.searchTracks("genre:" + genres[0], {limit : 10}).then(function(data){ // TODO loop through genres
         data.body.tracks.items.forEach(element => {
-            trackJSON.push(new track(element.name, element.popularity, genres[0]))
+            trackJSON.push({
+                name: nameArrayifyer(element.name),
+                popularity: element.popularity,
+                genre: genres[0]
+            });
         });
-        trackJSON.forEach(element => { // DEBUG
-            console.log(element);
-        });
+        trackJSON = _.uniqWith(trackJSON, _.isEqual);
+        console.log(trackJSON);
     }, function(err){
         console.log("an error occurred while querying", err);
     });
@@ -38,12 +41,6 @@ spotifyApi.clientCredentialsGrant().then(function(data){
     console.log('Something went wrong when retrieving an access token', err);
 });
 
-// creates a track object to store into the array
-function track(name, popularity, genre){ // TODO Categorize popularity 
-    this.name = nameArrayifyer(name);
-    this.popularity = popularity;
-    this.genre = genre;
-}
 
 // removes punctuation and splits the name strings into arrays
 function nameArrayifyer(name){
