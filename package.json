@@ -17,6 +17,7 @@
   },
   "homepage": "https://github.com/reedHam/spotifyDataminingProject#readme",
   "dependencies": {
+    "promise": "^8.0.1",
     "spotify-web-api-node": "^2.5.0"
   }
 }
