@@ -1,5 +1,6 @@
 var SpotifyWebApi = require("spotify-web-api-node");
 var _ = require("lodash");
+var bb = require("bluebird");
 var fs = require("fs");
 
 // pull the clientSecret from an gitignored file 
@@ -12,35 +13,80 @@ var spotifyApi = new SpotifyWebApi({
 
 
 var trackJSON = [];
-var genres = ["pop", "dace pop", "pop rap", "rap", "post-teen pop", "tropical house", "rock", "modern "] // array of genres to loop through // TODO add genres
+var genres = ["Metal", "pop", "folk", "country", "rock", "hip hop", "reggae", "jazz", "edm", "classical", "blues", "indie", "r&b", "alterative rock", "rap"]; // array of genres to loop through // TODO add genres
 // Retrieve access token from SpotifyWebApi endpoint
 spotifyApi.clientCredentialsGrant().then(function(data){
     console.log('The access token expires in ' + data.body['expires_in']);
     console.log('The access token is ' + data.body['access_token']);
 
     spotifyApi.setAccessToken(data.body['access_token']); // save access token to api object 
-
+    var searches = [];
     // Query spotify servers for songs by genre
-    spotifyApi.searchTracks("genre:" + genres[0], {limit : 10}).then(function(data){ // TODO loop through genres
-        data.body.tracks.items.forEach(element => {
-            trackJSON.push({
-                name: nameArrayifyer(element.name),
-                popularity: element.popularity,
-                genre: genres[0]
+    genres.forEach(genre => {
+        searches.push(spotifyApi.searchTracks("genre:" + genre, {limit : 50}).then(function(data){ 
+            data.body.tracks.items.forEach(element => {
+                trackJSON.push({
+                    name: nameArrayifyer(element.name),
+                    popularity: popCat(element.popularity),
+                    genre: genre
+                });
             });
-        });
-        trackJSON = _.uniqWith(trackJSON, _.isEqual);
-        console.log(trackJSON);
-    }, function(err){
-        console.log("an error occurred while querying", err);
+        }, function(err){
+            console.log("an error occurred while querying", err);
+        }));
+        searches.push(spotifyApi.searchTracks("genre:" + genre, {limit : 50, offset:50}).then(function(data){ 
+            data.body.tracks.items.forEach(element => {
+                trackJSON.push({
+                    name: nameArrayifyer(element.name),
+                    popularity: popCat(element.popularity),
+                    genre: genre
+                });
+            });
+        }, function(err){
+            console.log("an error occurred while querying", err);
+        }));
+        searches.push(spotifyApi.searchTracks("genre:" + genre, {limit : 50, offset:100}).then(function(data){ 
+            data.body.tracks.items.forEach(element => {
+                trackJSON.push({
+                    name: nameArrayifyer(element.name),
+                    popularity: popCat(element.popularity),
+                    genre: genre
+                });
+            });
+        }, function(err){
+            console.log("an error occurred while querying", err);
+        }));
     });
-
-
+    
+    bb.all(searches).done(function(){
+        console.log("Length with duplicates: " + trackJSON.length);
+        trackJSON = _.uniqWith(trackJSON, _.isEqual); // remove duplicate search values
+        fs.writeFile("./JSON/tracks.json", JSON.stringify(trackJSON), function(err){
+            if (err) {return console.log("an error occurred while writing JSON file:", err)}
+            console.log("successfully wrote JSON array of " + trackJSON.length + " length.");
+        });
+    });
 
 }, function(err){
     console.log('Something went wrong when retrieving an access token', err);
 });
 
+// categorizes data popular data for better frequent pattern matching
+function popCat(popularity){
+    if (popularity > 90){
+        return "most popular";
+    } else if (popularity > 80){
+        return "very popular"
+    } else if (popularity > 70){
+        return "fairly popular"
+    } else if (popularity > 60){
+        return "somewhat popular"
+    }  else if (popularity > 50){
+        return "popular"
+    }  else {
+        return "not very popular"
+    }
+}
 
 // removes punctuation and splits the name strings into arrays
 function nameArrayifyer(name){
@@ -48,4 +94,5 @@ function nameArrayifyer(name){
     name = name.replace(/[\u2000-\u206F\u2E00-\u2E7F\\'!"#$%&()*+,.\/:;<=>?@\[\]^_`{|}~]/g,""); // replace all punctuation besides -
     return name.split(/[ ,]+/);
 }
+
 
