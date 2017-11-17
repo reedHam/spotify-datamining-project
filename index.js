@@ -28,7 +28,7 @@ spotifyApi.clientCredentialsGrant().then(function(data){
                 trackJSON.push({
                     name: nameArrayifyer(element.name),
                     popularity: popCat(element.popularity),
-                    genre: genre
+                    genre: "genre: " + genre
                 });
             });
         }, function(err){

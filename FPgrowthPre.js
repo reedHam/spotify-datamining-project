@@ -1,7 +1,6 @@
-
-
 var fs = require("fs");
 var _ = require("lodash");
+var treeModel = require("tree-model")
 
 // 1st step: scan the database and get the support for each attribute in the database
 // 2nd step: discard the attributes with less than the minimum support
@@ -34,12 +33,6 @@ oneItemSets.sort(function(a, b){ // sort collection in descending order
     }
 });
 
-
-fs.writeFile("./JSON/oneSets.json", JSON.stringify(oneItemSets), function(err){
-    if (err) {return console.log("an error occurred while writing JSON file:", err)}
-    console.log("successfully wrote JSON array of " + oneItemSets.length + " length.");
-});
-
 // adds an item to the one item set if it is not not already found in the collection 
 // if it is in the collection then it adds one to its support count
 function addToOneSet(item){
@@ -54,3 +47,28 @@ function addToOneSet(item){
         oneItemSets.push({item: item, support: 1});
     }
 }
+
+
+// -------------------- one item sets have been generated at this point -----------------------
+var orderedTracks = [];
+// this block of code removes items from my tracks that are below the min support 
+// it also sorts items by highest support
+
+tracksJSON.forEach(function(track, index) { // for each track tracksJSON
+    orderedTracks.push([]); // add new entry
+    oneItemSets.forEach(itemSet => {
+        track.name.forEach(name =>{
+            if (name == itemSet.item){
+                orderedTracks[index].push(name);
+            }
+        });
+        if (track.popularity == itemSet.item){
+            orderedTracks[index].push(track.popularity);
+        }
+        if (track.genre == itemSet.item){
+            orderedTracks[index].push(track.genre);
+        }
+    });
+});
+
+
