@@ -35,7 +35,10 @@ oneItemSets.sort(function(a, b){ // sort collection in descending order
 });
 
 
-console.log(oneItemSets);
+fs.writeFile("./JSON/oneSets.json", JSON.stringify(oneItemSets), function(err){
+    if (err) {return console.log("an error occurred while writing JSON file:", err)}
+    console.log("successfully wrote JSON array of " + oneItemSets.length + " length.");
+});
 
 // adds an item to the one item set if it is not not already found in the collection 
 // if it is in the collection then it adds one to its support count
