@@ -1,6 +1,7 @@
 var fs = require("fs");
 var _ = require("lodash");
-var treeModel = require("tree-model")
+var TreeModel = require("tree-model");
+var LinkedList = require("linkedlist");
 
 // 1st step: scan the database and get the support for each attribute in the database
 // 2nd step: discard the attributes with less than the minimum support
@@ -8,7 +9,7 @@ var treeModel = require("tree-model")
 
 var tracksJSON = JSON.parse(fs.readFileSync("./JSON/tracks.json", 'utf8')); // read tracks file into memory
 var oneItemSets = [];
-var minSup = 3; // minimum support
+var minSup = 2; // minimum support
 
 tracksJSON.forEach(element => { // for each track tracksJSON
     element.name.forEach(itmName =>{
@@ -72,3 +73,58 @@ tracksJSON.forEach(function(track, index) { // for each track tracksJSON
 });
 
 
+// ---------------------------- creating FPtree -----------------------------------
+var FPtree = new TreeModel();
+var root = FPtree.parse({item: "root"});
+var header = oneItemSets;
+
+
+header.forEach(element => {
+    element["list"] = new LinkedList(); // add an empty list for each frequent 1-itemset
+});
+
+console.log(orderedTracks);
+orderedTracks.forEach(track => {
+    var currentNode = root;             //  current node stores the results of the insertion allowing subsequent items to be added to children of successfully operations
+    for(var i = 0, len =  track.length; i < len; i++){
+        currentNode = FPtreeInsert(currentNode, track[i]);
+    };
+});
+
+root.children.forEach(element => {
+    console.log("parent", element.model);
+    element.children.forEach(element => {
+        console.log("child", element.model);
+        element.children.forEach(element => {
+            console.log("grand child", element.model);
+        });
+    });
+});
+
+
+
+// takes a node and an item and inserts it into the FPtree based on the FPtree rules
+// also adds newly created nodes to the header object
+// returns the node that the item evaluated too
+function FPtreeInsert(node, item){
+    if (!node.hasChildren()) { // if node has no children
+        addFPnode(node, item);
+    }
+    for(var i = 0, len = node.children.length; i < len; i++) {
+        if (node.children[i].model.item == item){ // if the child matches the item
+            node.children[i].model.support++;
+            return node.children[i];
+        } 
+    };
+    addFPnode(node, item);
+}
+
+// adds a node and an enrty on the linked list of the header
+function addFPnode(node, item) {
+    for(var i = 0, len =  header.length; i < len; i++) { // item does not match any nodes on current level 
+        if (header[i].item == item){
+            header[i].list.push(node.addChild(FPtree.parse({item: item, support: 1}))); // add a new leaf node to the tree and add it to the linked list
+            return node.children[node.children.length - 1]; // return the new node
+        }
+    };
+}
