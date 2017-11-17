@@ -107,20 +107,14 @@ root.children.forEach(element => {
 // also adds newly created nodes to the header object
 // returns the node that the item evaluated too
 function FPtreeInsert(node, item){
-    if (!node.hasChildren()) { // if node has no children
-        addFPnode(node, item);
+    if (node.hasChildren()) { // if node has no children
+        for(var i = 0, len = node.children.length; i < len; i++) {
+            if (node.children[i].model.item == item){ // if the child matches the item
+                node.children[i].model.support++;
+                return node.children[i];
+            } 
+        };
     }
-    for(var i = 0, len = node.children.length; i < len; i++) {
-        if (node.children[i].model.item == item){ // if the child matches the item
-            node.children[i].model.support++;
-            return node.children[i];
-        } 
-    };
-    addFPnode(node, item);
-}
-
-// adds a node and an enrty on the linked list of the header
-function addFPnode(node, item) {
     for(var i = 0, len =  header.length; i < len; i++) { // item does not match any nodes on current level 
         if (header[i].item == item){
             header[i].list.push(node.addChild(FPtree.parse({item: item, support: 1}))); // add a new leaf node to the tree and add it to the linked list
@@ -128,3 +122,4 @@ function addFPnode(node, item) {
         }
     };
 }
+
