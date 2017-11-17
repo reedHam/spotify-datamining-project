@@ -23,29 +23,7 @@ spotifyApi.clientCredentialsGrant().then(function(data){
     var searches = [];
     // Query spotify servers for songs by genre
     genres.forEach(genre => {
-        searches.push(spotifyApi.searchTracks("genre:" + genre, {limit : 50}).then(function(data){ 
-            data.body.tracks.items.forEach(element => {
-                trackJSON.push({
-                    name: nameArrayifyer(element.name),
-                    popularity: popCat(element.popularity),
-                    genre: genre
-                });
-            });
-        }, function(err){
-            console.log("an error occurred while querying", err);
-        }));
-        searches.push(spotifyApi.searchTracks("genre:" + genre, {limit : 50, offset:50}).then(function(data){ 
-            data.body.tracks.items.forEach(element => {
-                trackJSON.push({
-                    name: nameArrayifyer(element.name),
-                    popularity: popCat(element.popularity),
-                    genre: genre
-                });
-            });
-        }, function(err){
-            console.log("an error occurred while querying", err);
-        }));
-        searches.push(spotifyApi.searchTracks("genre:" + genre, {limit : 50, offset:100}).then(function(data){ 
+        searches.push(spotifyApi.searchTracks("genre:" + genre, {limit : 10}).then(function(data){ 
             data.body.tracks.items.forEach(element => {
                 trackJSON.push({
                     name: nameArrayifyer(element.name),
@@ -60,7 +38,9 @@ spotifyApi.clientCredentialsGrant().then(function(data){
     
     bb.all(searches).done(function(){
         console.log("Length with duplicates: " + trackJSON.length);
+        
         trackJSON = _.uniqWith(trackJSON, _.isEqual); // remove duplicate search values
+
         fs.writeFile("./JSON/tracks.json", JSON.stringify(trackJSON), function(err){
             if (err) {return console.log("an error occurred while writing JSON file:", err)}
             console.log("successfully wrote JSON array of " + trackJSON.length + " length.");
@@ -74,25 +54,26 @@ spotifyApi.clientCredentialsGrant().then(function(data){
 // categorizes data popular data for better frequent pattern matching
 function popCat(popularity){
     if (popularity > 90){
-        return "most popular";
+        return "most popular (90 - 100)";
     } else if (popularity > 80){
-        return "very popular"
+        return "very popular (80 - 90)"
     } else if (popularity > 70){
-        return "fairly popular"
+        return "fairly popular (70 - 80)"
     } else if (popularity > 60){
-        return "somewhat popular"
+        return "somewhat popular (60 - 70)"
     }  else if (popularity > 50){
-        return "popular"
+        return "popular (50 - 60)"
     }  else {
-        return "not very popular"
+        return "not very popular (0 - 50)"
     }
 }
 
 // removes punctuation and splits the name strings into arrays
 function nameArrayifyer(name){
+    name = name.toLowerCase();
     name = name.replace(" -", ""); // remove extraneous hyphens e.g. "data-mining" will keep the hyphen but not "rocky - radio edit"
     name = name.replace(/[\u2000-\u206F\u2E00-\u2E7F\\'!"#$%&()*+,.\/:;<=>?@\[\]^_`{|}~]/g,""); // replace all punctuation besides -
-    return name.split(/[ ,]+/);
+    return name.split(/[ ,]+/); // splits the string into an array on space or comma
 }
 
 
