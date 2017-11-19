@@ -88,11 +88,8 @@ for (i = FPtree.header.length - 1; i >= FPtree.header.length - 1; i--){ // for e
     initializeHeader(conditionalFPtree, conditionalBase);
     conditionalBase = trimDb(conditionalBase, conditionalFPtree.header);
 
-    conditionalBase.forEach(element => {
-        var conditionalCurrentNode = conditionalRoot;
-        element.items.forEach(item => {
-            conditionalCurrentNode = FPGrowthInsert(conditionalFPtree, conditionalCurrentNode, item, element.support);
-        });
+    conditionalBase.forEach(iList => {
+            FPGrowthInsert(conditionalFPtree, conditionalRoot, iList);
     });
 
     console.log(conditionalBase);
@@ -105,7 +102,7 @@ for (i = FPtree.header.length - 1; i >= FPtree.header.length - 1; i--){ // for e
 // prams:
 //      tree:   The tree to initialize the header of.
 //      conDB:  Conditional database to initialize the header with.
-// returns: No return value.
+// returns: No return value
 function initializeHeader(tree, conDb){
     tree.header = [];
     conDb.forEach(element => {
@@ -162,29 +159,38 @@ function trimDb(db, header){
     return trimedDb;
 }
 
-// Inserts items into the tree and adds new nodes to the lists in the header.
+// Inserts items from a list into the tree and adds new nodes to the lists in 
+// the header. Recursively calls FPGrowthInsert until the list is empty.
 // Prams:
-//      header: Header that will have new nodes added to lists.
-//      node:   Node that will have its children checked.
-//      item:   Item to insert into the tree.
-//      support:Support count for the pattern item came from.
-// returns: The node that the item evaluated to.
-function FPGrowthInsert(header, node, item, support){
-    var itemIndex = tree.itemToindex(item);
-    if(itemIndex != -1){
+//      tree:       Tree that contains the header that will have new nodes added 
+//                  to its lists.
+//      node:       Node that will have its children checked.
+//      ilist:      Conditional pattern and support object.
+// returns: 
+function FPGrowthInsert(tree, node, iList){
+        var found = false;
+        var newNode = {};
         if (node.hasChildren()) { // if node has children
             // check if item matches any of node's children
             for(var i = 0, len = node.children.length; i < len; i++) {
-                if (node.children[i].model.item == item){ // if the child matches the item
-                    node.children[i].model.support += support;
-                    return node.children[i];
+                if (node.children[i].model.item == iList.items[0]){ // if the child matches the item
+                    found = true;
+                    node.children[i].model.support += iList.support;
+                    newNode = node.children[i];
                 } 
             };
         }
-        var newNode = node.addChild(FPtree.parse({item: item, support: support}));
-        header[itemIndex].list.push(newNode);
-        return newNode;
-    }
+        if (!found){ // node not found so insert it
+            newNode = node.addChild(FPtree.parse({
+                item: iList.items[0], 
+                support: iList.support
+            }));
+            tree.header[tree.itemToindex(iList.items[0])].list.push(newNode);
+        }
+        iList.items.shift(); // remove item that was inserted
+        if (iList.items.length !== 0){
+            FPGrowthInsert(tree, node, iList);
+        }
 }
 
 // --------------------- DEBUG --------------------
