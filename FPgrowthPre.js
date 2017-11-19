@@ -49,10 +49,9 @@ function addToOneSet(item){
 
 
 // -------------------- one item sets have been generated at this point -----------------------
-var orderedTracks = [];
 // this block of code removes items from my tracks that are below the min support 
 // it also sorts items by highest support
-
+var orderedTracks = [];
 tracksJSON.forEach(function(track, index) { // for each track tracksJSON
     orderedTracks.push([]); // add new entry
     oneItemSets.forEach(itemSet => { //  using one-item set as a key parts of a track are inserted into the new list in order

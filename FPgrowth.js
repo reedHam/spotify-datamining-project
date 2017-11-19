@@ -26,23 +26,26 @@ var FPtree = new TreeModel();
 FPtree.header = header;
 var root = FPtree.parse({item: "root"});
 
-
-
+// add an empty list for each frequent 1-itemset
 FPtree.header.forEach(element => {
-    element["list"] = []; // add an empty list for each frequent 1-itemset
+    element["list"] = []; 
 });
 
+//  current node stores the results of the insertion allowing subsequent 
+//  items to be added to children of successfully operations
 orderedTracks.forEach(track => {
-    var currentNode = root;             //  current node stores the results of the insertion allowing subsequent items to be added to children of successfully operations
+    var currentNode = root;             
     for(var i = 0, len =  track.length; i < len; i++){
         currentNode = FPtreeInsert(currentNode, track[i]);
     };
 });
 
-
 // takes a node and an item and inserts it into the FPtree based on the FPtree rules
-// also adds newly created nodes to the header object
-// returns the node that the item evaluated too
+// Adds any newly created nodes into the lists located in the header
+// Prams: 
+//      node: node that should have its children checked for item matches
+//      item: item to evaluate and insert into tree 
+// returns: the node that the item evaluated too
 function FPtreeInsert(node, item){
     if (node.hasChildren()) { // if node has no children
         for(var i = 0, len = node.children.length; i < len; i++) {
@@ -60,9 +63,10 @@ function FPtreeInsert(node, item){
     };
 }
 
-// ----------------- FP growth ------------------------
+// ---------------------------- FPtree Mining ---------------------------------
 
 for (i = FPtree.header.length - 1; i >= FPtree.header.length - 1; i--){ // for every item in the header
+    // ------------ creating conditional pattren database ---------------
     var conditionalBase = [];
     var leafNode = FPtree.header[i].list[0].model.item;
     FPtree.header[i].list.forEach(node => {
@@ -78,7 +82,7 @@ for (i = FPtree.header.length - 1; i >= FPtree.header.length - 1; i--){ // for e
         });
     });
     
-    // ------------ creating FPtree ---------------
+    // ------------ creating conditional FPtree ---------------
     var conditionalFPtree = new TreeModel();
     var conditionalRoot = conditionalFPtree.parse({item: "root"});
     initializeHeader(conditionalFPtree, conditionalBase);
@@ -96,7 +100,12 @@ for (i = FPtree.header.length - 1; i >= FPtree.header.length - 1; i--){ // for e
     FPtreeTest(conditionalFPtree);
 }
 
-// takes a FPtree and a conditional DB and creates a new header for the projection preserving order from the FP tree
+// Initializes the header for a tree by finding every item occurrence
+// and inserting them into the header with a support count for frequency.
+// prams:
+//      tree:   The tree to initialize the header of.
+//      conDB:  Conditional database to initialize the header with.
+// returns: No return value.
 function initializeHeader(tree, conDb){
     tree.header = [];
     conDb.forEach(element => {
@@ -129,6 +138,12 @@ function initializeHeader(tree, conDb){
     });
 }
 
+// Trims the database based on the elements in the header removing items 
+// below the minimum support count.
+// prams:
+//      db:     conditional database to trim
+//      header: header to trim the database with.
+// returns: trimmed conditional database.
 function trimDb(db, header){
     var trimedDb = [];
     db.forEach(itemSet => {
@@ -147,7 +162,14 @@ function trimDb(db, header){
     return trimedDb;
 }
 
-function FPGrowthInsert(tree, node, item, support){
+// Inserts items into the tree and adds new nodes to the lists in the header.
+// Prams:
+//      header: Header that will have new nodes added to lists.
+//      node:   Node that will have its children checked.
+//      item:   Item to insert into the tree.
+//      support:Support count for the pattern item came from.
+// returns: The node that the item evaluated to.
+function FPGrowthInsert(header, node, item, support){
     var itemIndex = tree.itemToindex(item);
     if(itemIndex != -1){
         if (node.hasChildren()) { // if node has children
@@ -160,7 +182,7 @@ function FPGrowthInsert(tree, node, item, support){
             };
         }
         var newNode = node.addChild(FPtree.parse({item: item, support: support}));
-        tree.header[itemIndex].list.push(newNode);
+        header[itemIndex].list.push(newNode);
         return newNode;
     }
 }
