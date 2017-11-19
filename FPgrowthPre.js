@@ -2,6 +2,21 @@ var fs = require("fs");
 var _ = require("lodash");
 var TreeModel = require("tree-model");
 
+TreeModel["header"] = []; // added header attribute for FPgrowth algorithm
+TreeModel.prototype.getHeaderByItem = function(item){
+    var result = false;
+    this.header.forEach(element => {
+        console.log(element.item);
+        console.log(item);
+        if (element.item == item){
+            result = element;
+        } 
+    });
+    return result;
+};
+
+
+
 // 1st step: scan the database and get the support for each attribute in the database
 // 2nd step: discard the attributes with less than the minimum support
 // 3rd step: sort the attributes in descending order
@@ -56,7 +71,7 @@ var orderedTracks = [];
 
 tracksJSON.forEach(function(track, index) { // for each track tracksJSON
     orderedTracks.push([]); // add new entry
-    oneItemSets.forEach(itemSet => {
+    oneItemSets.forEach(itemSet => { //  using one-item set as a key parts of a track are inserted into the new list in order
         track.name.forEach(name =>{
             if (name == itemSet.item){
                 orderedTracks[index].push(name);
@@ -74,11 +89,12 @@ tracksJSON.forEach(function(track, index) { // for each track tracksJSON
 
 // ---------------------------- creating FPtree -----------------------------------
 var FPtree = new TreeModel();
+FPtree.header = oneItemSets;
 var root = FPtree.parse({item: "root"});
-var header = oneItemSets;
 
 
-header.forEach(element => {
+
+FPtree.header.forEach(element => {
     element["list"] = []; // add an empty list for each frequent 1-itemset
 });
 
@@ -102,23 +118,39 @@ function FPtreeInsert(node, item){
             } 
         };
     }
-    for(var i = 0, len =  header.length; i < len; i++) { // item does not match any nodes on current level 
-        if (header[i].item == item){
-            header[i].list.push(node.addChild(FPtree.parse({item: item, support: 1}))); // add a new leaf node to the tree and add it to the linked list
+    for(var i = 0, len =  FPtree.header.length; i < len; i++) { // item does not match any nodes on current level 
+        if (FPtree.header[i].item == item){
+            FPtree.header[i].list.push(node.addChild(FPtree.parse({item: item, support: 1}))); // add a new leaf node to the tree and add it to the linked list
             return node.children[node.children.length - 1]; // return the new node
         }
     };
 }
 
-
+// FPtreeTest() //DEBUG
+// Debuging function checks the support of all the nodes in the list vs the values in the header table
+function FPtreeTest(){
+    FPtree.header.forEach(element => {
+        var supportTotal = 0;
+        element.list.forEach(node => {
+            supportTotal += node.model.support;
+        });
+        if(supportTotal == element.support){
+            console.log(element.item + " PASS");
+            console.log("");
+        } else {
+            console.log(element.item + " FAIL");
+            console.log("Header support: " + element.support);
+            console.log("Total support: " + supportTotal);
+            console.log("");
+        }
+    });
+}
 // ----------------- FP growth ------------------------
 
-
-
-for (i = header.length - 1; i >= header.length - 2; i--){ // for every item in the header
+for (i = FPtree.header.length - 1; i >= FPtree.header.length - 1; i--){ // for every item in the header
     var conditionalBase = [];
-    var leafNode = header[i].list[0].model.item;
-    header[i].list.forEach(node => {
+    var leafNode = FPtree.header[i].list[0].model.item;
+    FPtree.header[i].list.forEach(node => {
         var leafSupport = node.model.support;
         var prefixPath = node.getPath().slice(1, -1); // remove the root and leaf node leaving only the prefix path
         var conditionalPattern = [];
@@ -131,9 +163,28 @@ for (i = header.length - 1; i >= header.length - 2; i--){ // for every item in t
         });
     });
 
+    //console.log(conditionalBase);
+
     var conditionalFPtree = new TreeModel
     var root = conditionalFPtree.parse({item: "root"});
-    conditionalFPtree["header"] = [];
 
-    
 }
+
+function FPGrowthInsert(tree, node, item, support){
+    if (node.hasChildren()) { // if node has children
+        // check if item matches any of node's children
+        for(var i = 0, len = node.children.length; i < len; i++) {
+            if (node.children[i].model.item == item){ // if the child matches the item
+                node.children[i].model.support += support;
+                return node.children[i];
+            } 
+        };
+    }
+    // no spot for item was found so
+    // add item to tree
+    // add item to header
+    // add new node to header
+    // return new node
+
+}
+
