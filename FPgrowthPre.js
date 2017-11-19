@@ -1,7 +1,6 @@
 var fs = require("fs");
 var _ = require("lodash");
 var TreeModel = require("tree-model");
-var LinkedList = require("linkedlist");
 
 // 1st step: scan the database and get the support for each attribute in the database
 // 2nd step: discard the attributes with less than the minimum support
@@ -9,7 +8,7 @@ var LinkedList = require("linkedlist");
 
 var tracksJSON = JSON.parse(fs.readFileSync("./JSON/tracks.json", 'utf8')); // read tracks file into memory
 var oneItemSets = [];
-var minSup = 2; // minimum support
+var minSup = 3; // minimum support
 
 tracksJSON.forEach(element => { // for each track tracksJSON
     element.name.forEach(itmName =>{
@@ -80,27 +79,15 @@ var header = oneItemSets;
 
 
 header.forEach(element => {
-    element["list"] = new LinkedList(); // add an empty list for each frequent 1-itemset
+    element["list"] = []; // add an empty list for each frequent 1-itemset
 });
 
-console.log(orderedTracks);
 orderedTracks.forEach(track => {
     var currentNode = root;             //  current node stores the results of the insertion allowing subsequent items to be added to children of successfully operations
     for(var i = 0, len =  track.length; i < len; i++){
         currentNode = FPtreeInsert(currentNode, track[i]);
     };
 });
-
-root.children.forEach(element => {
-    console.log("parent", element.model);
-    element.children.forEach(element => {
-        console.log("child", element.model);
-        element.children.forEach(element => {
-            console.log("grand child", element.model);
-        });
-    });
-});
-
 
 
 // takes a node and an item and inserts it into the FPtree based on the FPtree rules
@@ -123,3 +110,30 @@ function FPtreeInsert(node, item){
     };
 }
 
+
+// ----------------- FP growth ------------------------
+
+
+
+for (i = header.length - 1; i >= header.length - 2; i--){ // for every item in the header
+    var conditionalBase = [];
+    var leafNode = header[i].list[0].model.item;
+    header[i].list.forEach(node => {
+        var leafSupport = node.model.support;
+        var prefixPath = node.getPath().slice(1, -1); // remove the root and leaf node leaving only the prefix path
+        var conditionalPattern = [];
+        prefixPath.forEach(nodeItem => { // transform prefix path into conditional pattern
+            conditionalPattern.push(nodeItem.model.item);
+        });
+        conditionalBase.push({
+            items: conditionalPattern,
+            support: leafSupport
+        });
+    });
+
+    var conditionalFPtree = new TreeModel
+    var root = conditionalFPtree.parse({item: "root"});
+    conditionalFPtree["header"] = [];
+
+    
+}

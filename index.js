@@ -23,7 +23,7 @@ spotifyApi.clientCredentialsGrant().then(function(data){
     var searches = [];
     // Query spotify servers for songs by genre
     genres.forEach(genre => {
-        searches.push(spotifyApi.searchTracks("genre:" + genre, {limit : 1}).then(function(data){ 
+        searches.push(spotifyApi.searchTracks("genre:" + genre, {limit : 50}).then(function(data){ 
             data.body.tracks.items.forEach(element => {
                 trackJSON.push({
                     name: nameArrayifyer(element.name),

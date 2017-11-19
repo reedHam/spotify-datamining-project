@@ -21,7 +21,6 @@
     "linkedlist": "^1.0.1",
     "lodash": "^4.17.4",
     "spotify-web-api-node": "^2.5.0",
-    "superagent": "^3.8.1",
     "tree-model": "^1.0.6"
   }
 }
