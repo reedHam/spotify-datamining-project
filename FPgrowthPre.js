@@ -3,19 +3,16 @@ var _ = require("lodash");
 var TreeModel = require("tree-model");
 
 TreeModel["header"] = []; // added header attribute for FPgrowth algorithm
-TreeModel.prototype.getHeaderByItem = function(item){
-    var result = false;
-    this.header.forEach(element => {
-        console.log(element.item);
-        console.log(item);
-        if (element.item == item){
-            result = element;
+// takes an item support and node then looks up the item and returns the index
+TreeModel.prototype.itemToindex = function(item){
+    var result = -1;
+    this.header.forEach(function(head, index){
+        if (head.item == item){
+            result = index;
         } 
     });
     return result;
 };
-
-
 
 // 1st step: scan the database and get the support for each attribute in the database
 // 2nd step: discard the attributes with less than the minimum support
@@ -23,7 +20,7 @@ TreeModel.prototype.getHeaderByItem = function(item){
 
 var tracksJSON = JSON.parse(fs.readFileSync("./JSON/tracks.json", 'utf8')); // read tracks file into memory
 var oneItemSets = [];
-var minSup = 3; // minimum support
+var minSup = 2; // minimum support
 
 tracksJSON.forEach(element => { // for each track tracksJSON
     element.name.forEach(itmName =>{
@@ -126,25 +123,6 @@ function FPtreeInsert(node, item){
     };
 }
 
-// FPtreeTest() //DEBUG
-// Debuging function checks the support of all the nodes in the list vs the values in the header table
-function FPtreeTest(){
-    FPtree.header.forEach(element => {
-        var supportTotal = 0;
-        element.list.forEach(node => {
-            supportTotal += node.model.support;
-        });
-        if(supportTotal == element.support){
-            console.log(element.item + " PASS");
-            console.log("");
-        } else {
-            console.log(element.item + " FAIL");
-            console.log("Header support: " + element.support);
-            console.log("Total support: " + supportTotal);
-            console.log("");
-        }
-    });
-}
 // ----------------- FP growth ------------------------
 
 for (i = FPtree.header.length - 1; i >= FPtree.header.length - 1; i--){ // for every item in the header
@@ -162,29 +140,125 @@ for (i = FPtree.header.length - 1; i >= FPtree.header.length - 1; i--){ // for e
             support: leafSupport
         });
     });
+    
+    // ------------ creating FPtree ---------------
+    var conditionalFPtree = new TreeModel();
+    var conditionalRoot = conditionalFPtree.parse({item: "root"});
+    initializeHeader(conditionalFPtree, conditionalBase);
+    conditionalBase = trimDb(conditionalBase, conditionalFPtree.header);
 
-    //console.log(conditionalBase);
+    conditionalBase.forEach(element => {
+        var conditionalCurrentNode = conditionalRoot;
+        element.items.forEach(item => {
+            conditionalCurrentNode = FPGrowthInsert(conditionalFPtree, conditionalCurrentNode, item, element.support);
+        });
+    });
 
-    var conditionalFPtree = new TreeModel
-    var root = conditionalFPtree.parse({item: "root"});
+    console.log(conditionalBase);
+    printTree(conditionalRoot, conditionalRoot);
+    FPtreeTest(conditionalFPtree);
+}
 
+// takes a FPtree and a conditional DB and creates a new header for the projection preserving order from the FP tree
+function initializeHeader(tree, conDb){
+    tree.header = [];
+    conDb.forEach(element => {
+        element.items.forEach(item => {
+            var found = false;
+            tree.header.forEach(head => {
+                if(head.item == item){
+                    head.support += element.support;
+                    found = true;
+                }
+            });
+            if (!found){
+                tree.header.push({item: item, support: element.support, list: []});
+            }
+        });
+    });  
+
+    tree.header = tree.header.filter(function(x){ // filter values less than min support 
+        return x.support >= minSup;
+    });
+
+    tree.header.sort(function(a, b){ // sort collection in descending order
+        if (a.support < b.support){
+            return 1;
+        } else if (a.support > b.support){
+            return -1;
+        } else {
+            return 0;
+        }
+    });
+}
+
+function trimDb(db, header){
+    var trimedDb = [];
+    
+    db.forEach(itemSet => {
+        var trimedItems = [];
+        header.forEach(head => {
+            itemSet.items.forEach(item =>{
+                if (head.item == item){
+                    trimedItems.push(item);
+                }
+            });
+        });
+        if(trimedItems.length !== 0){
+            trimedDb.push({items: trimedItems, support: itemSet.support});
+        }
+    });
+    return trimedDb;
 }
 
 function FPGrowthInsert(tree, node, item, support){
-    if (node.hasChildren()) { // if node has children
-        // check if item matches any of node's children
-        for(var i = 0, len = node.children.length; i < len; i++) {
-            if (node.children[i].model.item == item){ // if the child matches the item
-                node.children[i].model.support += support;
-                return node.children[i];
-            } 
-        };
+    var itemIndex = tree.itemToindex(item);
+    if(itemIndex != -1){
+        if (node.hasChildren()) { // if node has children
+            // check if item matches any of node's children
+            for(var i = 0, len = node.children.length; i < len; i++) {
+                if (node.children[i].model.item == item){ // if the child matches the item
+                    node.children[i].model.support += support;
+                    return node.children[i];
+                } 
+            };
+        }
+        var newNode = node.addChild(FPtree.parse({item: item, support: support}));
+        tree.header[itemIndex].list.push(newNode);
+        return newNode;
     }
-    // no spot for item was found so
-    // add item to tree
-    // add item to header
-    // add new node to header
-    // return new node
-
 }
 
+// --------------------- DEBUG --------------------
+// Debuging function checks the support of all the nodes in the list vs the values in the header table
+function FPtreeTest(tree){
+    var fail = false;
+    tree.header.forEach(element => {
+        var supportTotal = 0;
+        element.list.forEach(node => {
+            supportTotal += node.model.support;
+        });
+        if(supportTotal !== element.support){
+            fail = true;
+            console.log(element.item + " FAIL");
+            console.log("Header support: " + element.support);
+            console.log("Total support: " + supportTotal);
+            console.log("");
+        }
+    });
+    if(!fail){
+        console.log("Tree PASSES")
+    }
+}
+
+function printTree(node, parent, Level = -1){   
+    console.log("")
+    console.log("level: " + Level + "   parent: " + parent.model.item);
+    console.log("node: " + node.model.item + "  Support: " + node.model.support);
+    if(node.hasChildren()){
+        var inc = Level + 1;
+        node.children.forEach(child => {
+            printTree(child, node, inc);
+        });
+    }
+}
