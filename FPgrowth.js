@@ -17,13 +17,13 @@ TreeModel.prototype.itemToindex = function(item){
 // Read ordered and pruned db into memory
 var orderedTracks = JSON.parse(fs.readFileSync("./JSON/FPgrowthDB.json", 'utf8'));
 // read header for FP tree
-var header = JSON.parse(fs.readFileSync("./JSON/FPgrowthHeader.json", 'utf8'));
-var minSup = 2; // minimum support
+var headerFile = JSON.parse(fs.readFileSync("./JSON/FPgrowthHeader.json", 'utf8'));
+var minSup = 5; // minimum support
 
 
 // ---------------------------- creating FPtree -----------------------------------
 var FPtree = new TreeModel();
-FPtree.header = header;
+FPtree.header = headerFile;
 FPtree["root"] = FPtree.parse({item: "root"});
 
 
@@ -64,31 +64,67 @@ function FPtreeInsert(node, item){
     };
 }
 
+
+frequentItemSets = [];
+FPgrowth(FPtree);
+frequentItemSets.sort(function(a, b){ // sort collection in descending order
+    if (a.support < b.support){
+        return 1;
+    } else if (a.support > b.support){
+        return -1;
+    } else {
+        return 0;
+    }
+});
+console.log(frequentItemSets);
+
 // ---------------------------- FPtree Mining ---------------------------------
 // Recursively finds all frequent patterns in the FPtree.
 // prams:
 //      tree: the tree to mine
 //      patern: the pattern that the conditional base is build upon
-// returns: Frequent patterns
+// returns: No return value. frequent patterns are added to global variable "frequentItemSets"
 function FPgrowth(tree, pattern = null){
-    if (singlePath(tree.root)){
-        var path = tree.header[tree.header.length - 1].list[0].getPath().slice(1, -1);
-        path.forEach(nodeItem => { // transform prefix path into conditional pattern
-            item: nodeItem.model.item, support: nodeItem.model.support;
-        });
 
+    if (singlePath(tree.root)){
+        var path = tree.header[tree.header.length - 1].list[0].getPath();
+        var pathItems = [];
+        var combinations = [];
+        path.forEach(nodeItem => { // transform prefix path into conditional pattern
+            if(nodeItem.model.item != "root" && nodeItem.model.item != pattern.item){
+                pathItems.push({item: nodeItem.model.item, support: nodeItem.model.support});
+            }
+        });
+        for(let combination of allCombinations(pathItems)){
+            if(combination.length !== 0){
+                combinations.push(combination);
+            }
+        }
+        combinations.forEach(set =>{
+            var minItemSupport = set[0].support;
+            var frequentSet = {items:[], support:0};
+            set.forEach(item => {
+                frequentSet.items.push(item.item);
+                if(minItemSupport > item.support){
+                    minItemSupport = item.support;
+                }
+            });
+            frequentSet.support = minItemSupport > pattern.support ? pattern.support : minItemSupport;
+            frequentItemSets.push(frequentSet); // add to the final set
+        });
     } else {
-        for (i = FPtree.header.length - 1; i >= 0; i--){ // for every item in the header
-            newPattern = {items: [], support: 0};
+        for (let i = tree.header.length - 1; i >= 0; i--){ // for every item in the header
+            var newPattern = {items: [], support: 0};
             if (pattern !== null){
-                newPattern.items = pattern.items;
+                newPattern.items = pattern.items.slice();
             } 
-            newPattern.items.push(FPtree.header[i].item);
-            newPattern.support = FPtree.header[i].support;
-    
-            conditionalBase = createConditionalBase(tree);
-            conditionalFPtree = buildFPtree(conditionalBase);
+
+            newPattern.items.push(tree.header[i].item);
+            newPattern.support = tree.header[i].support;
+            frequentItemSets.push(newPattern);
             
+            conditionalBase = createConditionalBase(tree.header[i].list);
+            conditionalFPtree = buildFPtree(conditionalBase);
             if (conditionalFPtree.root.hasChildren()){
                 FPgrowth(conditionalFPtree, newPattern);
             }
@@ -103,8 +139,13 @@ function FPgrowth(tree, pattern = null){
 //      array: array to generate power set from
 function* allCombinations(array, offset = 0){
     while(offset < array.length){
-        let first
+        let first = array[offset++];
+        for(let combination of allCombinations(array, offset)){
+            combination.push(first);
+            yield combination;
+        }
     }
+    yield [];
 }
 
 // Checks if a tree is a single path
@@ -126,10 +167,10 @@ function singlePath(root){
 // prams:
 //      tree: Tree that will be used to creat the database
 // returns: database of conditional patterns
-function createConditionalBase(tree){
+function createConditionalBase(list){
     var conditionalBase = [];
-    var leafNode = tree.header[i].list[0].model.item;
-    tree.header[i].list.forEach(node => {
+    var leafNode = list[0].model.item;
+    list.forEach(node => {
         var leafSupport = node.model.support;
         var prefixPath = node.getPath().slice(1, -1); // remove the root and leaf node leaving only the prefix path
         var conditionalPattern = [];
@@ -215,29 +256,34 @@ function trimDb(db, header){
 //      ilist:      Conditional pattern and support object.
 // returns: No return value
 function FPGrowthInsert(tree, node, iList){
-        var found = false;
-        var newNode = {};
-        if (node.hasChildren()) { // if node has children
-            // check if item matches any of node's children
-            for(var i = 0, len = node.children.length; i < len; i++) {
-                if (node.children[i].model.item == iList.items[0]){ // if the child matches the item
-                    found = true;
-                    node.children[i].model.support += iList.support;
-                    newNode = node.children[i];
-                } 
-            };
+    var found = false;
+    var newNode = {};
+    if (node.hasChildren()) { // if node has children
+        // check if item matches any of node's children
+        for(var i = 0, len = node.children.length; i < len; i++) {
+            if (node.children[i].model.item == iList.items[0]){ // if the child matches the item
+                found = true;
+                node.children[i].model.support += iList.support;
+                newNode = node.children[i];
+            } 
+        };
+    }
+    if (!found){ // node not found so insert it
+        newNode = node.addChild(tree.parse({
+            item: iList.items[0], 
+            support: iList.support
+        }));
+        for(let i = 0, len = tree.header.length; i < len; i++){
+            if (tree.header[i].item == iList.items[0]){
+                tree.header[i].list.push(newNode);
+            }
         }
-        if (!found){ // node not found so insert it
-            newNode = node.addChild(FPtree.parse({
-                item: iList.items[0], 
-                support: iList.support
-            }));
-            tree.header[tree.itemToindex(iList.items[0])].list.push(newNode);
-        }
-        iList.items.shift(); // remove item that was inserted
-        if (iList.items.length !== 0){
-            FPGrowthInsert(tree, node, iList);
-        }
+        
+    }
+    iList.items.shift(); // remove item that was inserted
+    if (iList.items.length !== 0){
+        FPGrowthInsert(tree, node, iList);
+    }
 }
 
 //  Builds an fp tree from a conditional pattern database
@@ -278,12 +324,27 @@ function FPtreeTest(tree){
     }
 }
 
-function printTree(node, parent, Level = -1){   
+function printTree(node, parent, level = -1){  
+    var indentation = "";
+    var heritage = "";
+    for (let i = 0; i < level; i++){
+        indentation += "    ";
+        if(level >= 2 && i > 0){
+            heritage += " great"
+        }
+    } 
+    if (level >= 1){
+        heritage += " grand"
+    } 
+    if (level >= 0 ) {
+        heritage += " child"
+    }
+    
     console.log("")
-    console.log("level: " + Level + "   parent: " + parent.model.item);
-    console.log("node: " + node.model.item + "  Support: " + node.model.support);
+    console.log(indentation + "level:" + level + " " + heritage);
+    console.log(indentation + "node: " + node.model.item + "  Support: " + node.model.support);
     if(node.hasChildren()){
-        var inc = Level + 1;
+        var inc = level + 1;
         node.children.forEach(child => {
             printTree(child, node, inc);
         });

@@ -35,7 +35,32 @@ spotifyApi.clientCredentialsGrant().then(function(data){
             console.log("an error occurred while querying", err);
         }));
     });
-    
+    genres.forEach(genre => {
+        searches.push(spotifyApi.searchTracks("genre:" + genre, {limit : 50, offset:50}).then(function(data){ 
+            data.body.tracks.items.forEach(element => {
+                trackJSON.push({
+                    name: nameArrayifyer(element.name),
+                    popularity: popCat(element.popularity),
+                    genre: "genre: " + genre
+                });
+            });
+        }, function(err){
+            console.log("an error occurred while querying", err);
+        }));
+    });
+    genres.forEach(genre => {
+        searches.push(spotifyApi.searchTracks("genre:" + genre, {limit : 50, offset:100}).then(function(data){ 
+            data.body.tracks.items.forEach(element => {
+                trackJSON.push({
+                    name: nameArrayifyer(element.name),
+                    popularity: popCat(element.popularity),
+                    genre: "genre: " + genre
+                });
+            });
+        }, function(err){
+            console.log("an error occurred while querying", err);
+        }));
+    });
     bb.all(searches).done(function(){
         console.log("Length with duplicates: " + trackJSON.length);
         
