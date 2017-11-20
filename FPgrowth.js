@@ -24,7 +24,8 @@ var minSup = 2; // minimum support
 // ---------------------------- creating FPtree -----------------------------------
 var FPtree = new TreeModel();
 FPtree.header = header;
-var root = FPtree.parse({item: "root"});
+FPtree["root"] = FPtree.parse({item: "root"});
+
 
 // add an empty list for each frequent 1-itemset
 FPtree.header.forEach(element => {
@@ -34,7 +35,7 @@ FPtree.header.forEach(element => {
 //  current node stores the results of the insertion allowing subsequent 
 //  items to be added to children of successfully operations
 orderedTracks.forEach(track => {
-    var currentNode = root;             
+    var currentNode = FPtree.root;             
     for(var i = 0, len =  track.length; i < len; i++){
         currentNode = FPtreeInsert(currentNode, track[i]);
     };
@@ -64,12 +65,71 @@ function FPtreeInsert(node, item){
 }
 
 // ---------------------------- FPtree Mining ---------------------------------
+// Recursively finds all frequent patterns in the FPtree.
+// prams:
+//      tree: the tree to mine
+//      patern: the pattern that the conditional base is build upon
+// returns: Frequent patterns
+function FPgrowth(tree, pattern = null){
+    if (singlePath(tree.root)){
+        var path = tree.header[tree.header.length - 1].list[0].getPath().slice(1, -1);
+        path.forEach(nodeItem => { // transform prefix path into conditional pattern
+            item: nodeItem.model.item, support: nodeItem.model.support;
+        });
 
-for (i = FPtree.header.length - 1; i >= FPtree.header.length - 1; i--){ // for every item in the header
-    // ------------ creating conditional pattren database ---------------
+    } else {
+        for (i = FPtree.header.length - 1; i >= 0; i--){ // for every item in the header
+            newPattern = {items: [], support: 0};
+            if (pattern !== null){
+                newPattern.items = pattern.items;
+            } 
+            newPattern.items.push(FPtree.header[i].item);
+            newPattern.support = FPtree.header[i].support;
+    
+            conditionalBase = createConditionalBase(tree);
+            conditionalFPtree = buildFPtree(conditionalBase);
+            
+            if (conditionalFPtree.root.hasChildren()){
+                FPgrowth(conditionalFPtree, newPattern);
+            }
+        }
+    }
+}
+
+
+// Given an array of items this generator will create all possible combinations 
+// reference: https://stackoverflow.com/questions/42773836/how-to-find-all-subsets-of-a-set-in-javascript
+// prams:
+//      array: array to generate power set from
+function* allCombinations(array, offset = 0){
+    while(offset < array.length){
+        let first
+    }
+}
+
+// Checks if a tree is a single path
+// prams: 
+//      root: root of the tree to evaluate
+// returns: true if the tree is a single path false otherwise.
+function singlePath(root){
+    if(root.hasChildren()){
+        if (root.children.length == 1){
+            return singlePath(root.children[0]);
+        } else {
+            return false;
+        }
+    }
+    return true;
+}
+
+// Creates a database of paths to the root
+// prams:
+//      tree: Tree that will be used to creat the database
+// returns: database of conditional patterns
+function createConditionalBase(tree){
     var conditionalBase = [];
-    var leafNode = FPtree.header[i].list[0].model.item;
-    FPtree.header[i].list.forEach(node => {
+    var leafNode = tree.header[i].list[0].model.item;
+    tree.header[i].list.forEach(node => {
         var leafSupport = node.model.support;
         var prefixPath = node.getPath().slice(1, -1); // remove the root and leaf node leaving only the prefix path
         var conditionalPattern = [];
@@ -81,20 +141,7 @@ for (i = FPtree.header.length - 1; i >= FPtree.header.length - 1; i--){ // for e
             support: leafSupport
         });
     });
-    
-    // ------------ creating conditional FPtree ---------------
-    var conditionalFPtree = new TreeModel();
-    var conditionalRoot = conditionalFPtree.parse({item: "root"});
-    initializeHeader(conditionalFPtree, conditionalBase);
-    conditionalBase = trimDb(conditionalBase, conditionalFPtree.header);
-
-    conditionalBase.forEach(iList => {
-            FPGrowthInsert(conditionalFPtree, conditionalRoot, iList);
-    });
-
-    console.log(conditionalBase);
-    printTree(conditionalRoot, conditionalRoot);
-    FPtreeTest(conditionalFPtree);
+    return conditionalBase;
 }
 
 // Initializes the header for a tree by finding every item occurrence
@@ -166,7 +213,7 @@ function trimDb(db, header){
 //                  to its lists.
 //      node:       Node that will have its children checked.
 //      ilist:      Conditional pattern and support object.
-// returns: 
+// returns: No return value
 function FPGrowthInsert(tree, node, iList){
         var found = false;
         var newNode = {};
@@ -191,6 +238,22 @@ function FPGrowthInsert(tree, node, iList){
         if (iList.items.length !== 0){
             FPGrowthInsert(tree, node, iList);
         }
+}
+
+//  Builds an fp tree from a conditional pattern database
+//  prams:
+//      conditionalBase: database of conditional patterns
+//  returns: constructed fp tree
+function buildFPtree(conditionalBase){
+    var conditionalFPtree = new TreeModel();
+    conditionalFPtree["root"] = conditionalFPtree.parse({item: "root"})
+    initializeHeader(conditionalFPtree, conditionalBase);
+    conditionalBase = trimDb(conditionalBase, conditionalFPtree.header);
+
+    conditionalBase.forEach(iList => {
+            FPGrowthInsert(conditionalFPtree, conditionalFPtree.root, iList);
+    });
+    return conditionalFPtree;
 }
 
 // --------------------- DEBUG --------------------
