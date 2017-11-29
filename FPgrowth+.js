@@ -1,70 +1,90 @@
 var fs = require("fs");
 var _ = require("lodash");
 var TreeModel = require("tree-model");
-TreeModel.prototype.initialize = function(){
+TreeModel.prototype.initialize = function(base = null){
     this["header"] = [];   // added header attribute for FPgrowth algorithm
     this["FPArray"] = [];    // multi dimensional Array containing frequent item counts 
     this.FPArray["X"] = {};    // Dictionary to translate strings into indexes for x axis 
     this.FPArray["Y"] = {};    // Dictionary to translate strings into indexes for y axis 
     this["root"] = this.parse({item: "root"});     // root of the tree
-    this["base"] = {item: null}; // what the tree was produced using
+    this["base"] = base; // what the tree was produced using
 }
 
+// testingDB and testingHeader are taken from the data mining textbook pg 258
+testingDB = [
+    ["I2", "I1", "I5"],
+    ["I2", "I4"],
+    ["I2", "I3"],
+    ["I2", "I1", "I4"],
+    ["I1", "I3"],
+    ["I2", "I3"],
+    ["I1", "I3"],
+    ["I2", "I1", "I3", "I5"],
+    ["I2", "I1", "I3"]
+];
+testingHeader = [
+    {item:"I2", support: 7},
+    {item:"I1", support: 6},
+    {item:"I3", support: 6},
+    {item:"I4", support: 2},
+    {item:"I5", support: 2},
+];
 
-
-var minSup = 4; // minimum support
-
+var minSup = 2; // minimum support
+var AllFPs = [];
 // Read ordered and pruned db into memory
 var orderedTracks = JSON.parse(fs.readFileSync("./JSON/FPgrowthDB.json", 'utf8'));
 // read header for FP tree
 var headerFile = JSON.parse(fs.readFileSync("./JSON/FPgrowthHeader.json", 'utf8'));
 
-// ---------------- constructing initial FPTree from database ----------------
 
+
+
+// ---------------- constructing initial FPTree from database ----------------
 var FPTree = new TreeModel(); // initialize FPTree
 FPTree.initialize();
-FPTree.header = headerFile;
+FPTree.header = testingHeader;
 FPTree.header.forEach(element => { // add empty array to each header item
     element['list'] = [];
 });
 
-
 // Build multi dimensional array and dictionaries
-for (let i = 1, len = headerFile.length - 1; i <= len; i++){ // start the index at the second element
-    FPTree.FPArray.Y[headerFile[i].item] = i - 1; // add y value to dictionary
-    FPTree.FPArray.X[headerFile[i - 1].item] = i - 1; // add x value to dictionary
-    FPTree.FPArray.push([]); // initialize empty array at end of array
-    for (let j = 0; j < i; j++){
+for (let i = 1, len = FPTree.header.length - 1; i <= len; i++){ // start the index at the second element
+    FPTree.FPArray.Y[FPTree.header[i].item] = i - 1; // add y value to dictionary
+    FPTree.FPArray.X[FPTree.header[i - 1].item] = i - 1; // add x value to dictionary
+    FPTree.FPArray.push([]); // initialize empty array
+    for (let j = 0; j < i; j++){ // insert 0 for header.length - 1 items
         FPTree.FPArray[FPTree.FPArray.length - 1].push(0);
     }
 }
 
-
 // Build FPTree 
-
 // insert all of the transactions into the fp tree
-console.log(FPTree.FPArray.Y);
-console.log(FPTree.FPArray.X);
-orderedTracks.forEach(track => {
+testingDB.forEach(track => {
+    if (FPTree.header.length > 2) { // array cannot be build with only 2 items
+        FPArrayInc(FPTree.FPArray, track);
+    }
     FPTreeInsert(FPTree, FPTree.root, track);
 });
 
-
+// DEBUG
+console.log(FPTree.FPArray.Y);
+console.log(FPTree.FPArray.X);
 FPTree.FPArray.forEach(element =>{
     console.log(JSON.stringify(element));
 });
-    
+FPtreeTest(FPTree);
+printTree(FPTree.root, FPTree.root);
 
 // Inserts items from a list into the tree and adds new nodes to the lists in 
 // the header. Recursively calls FPGrowthInsert until the list is empty.
 // Prams:
-//      tree:       Tree that contains the header that will have new nodes added 
-//                  to its lists.
-//      node:       Node that will have its children checked.
+//      tree:     Tree that contains the header that will have new nodes added 
+//                to its lists.
+//      node:     Node that will have its children checked.
 //      row:      transaction.
 // returns: No return value
 function FPTreeInsert(tree, node, track){
-    FPArrayInc(tree.FPArray, track);
     var found = false;
     var newNode = {};
     if (node.hasChildren()) { // if node has children
@@ -96,12 +116,69 @@ function FPTreeInsert(tree, node, track){
 }
 
 
+
+// ------------------------- FPGrowth* --------------------------------
+
+function FPGrowthPlus(tree){
+    if (singlePath(tree)){
+
+    } else {
+        // for each item in the header starting with lowest support
+        for (let i = tree.header.length - 1; i >= 0; i--){
+            // initialize tree for element at i
+            var newTree = new TreeModel();
+            newTree.initialize(tree.header[i].item);
+
+            // add frequent pattern at i U tree.base
+            AllFPs.push({items: [].push(tree.base).push(newTree.base), support: tree.header[i].support});
+
+            if (tree.FPArray.length < 1){ // the fp array has items in it
+                var newHeader = [];
+                // build header from array
+                tree.FPArray[tree.FPArray.Y[tree.base]].forEach(function(value, index){ 
+                    if (value > minSup){
+                        var itemName = _.findKey(tree.FPArray.X, index);
+                        newHeader.push({item: itemName, support: value, list: []});
+                    }
+                });
+            } else {
+                // construct header from tree paths
+            }
+            // build FPTree for element at i
+            // build FPArray if header.length > 2
+            if (newTree.root.hasChildren()){
+
+            }
+        }
+    }
+}
+
+
+// Checks if a tree is a single path
+// prams: 
+//      root: root of the tree to evaluate
+// returns: true if the tree is a single path false otherwise.
+function singlePath(root){
+    if(root.hasChildren()){
+        if (root.children.length == 1){
+            return singlePath(root.children[0]);
+        } else {
+            return false;
+        }
+    }
+    return true;
+}
+
+
+
 // takes an FPArray and a row and increments the array in the correct places
 //  prams:
 //      FPArray: multidimensional array 
 //      row: row with items to create 2 item subsets from
 // return: no return value
 function FPArrayInc(FPArray, row){
+    //console.log("transaction: ", row); DEBUG
+
     // generate all 2 item pairs
     // e.g. input array [1, 2, 3, 4]
     //      pairs       [1, 2], [1, 3], [1, 4], [2, 3], [2, 4], [3, 4]
@@ -117,6 +194,7 @@ function FPArrayInc(FPArray, row){
                 var yIndex = FPArray.Y[firstItem];
                 var xIndex = FPArray.X[secondItem];
             }
+            //console.log("first: " + firstItem + " | second: "  + secondItem); DEBUG
             FPArray[yIndex][xIndex] += 1;
         }
     }
@@ -125,7 +203,7 @@ function FPArrayInc(FPArray, row){
 
 
 // --------------------- DEBUG --------------------
-// Debuging function checks the support of all the nodes in the list vs the values in the header table
+// Debugging function checks the support of all the nodes in the list vs the values in the header table
 function FPtreeTest(tree){
     var fail = false;
     tree.header.forEach(element => {
