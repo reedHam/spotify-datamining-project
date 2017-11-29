@@ -284,7 +284,7 @@ function FPGrowthInsert(tree, node, iList){
     }
     iList.items.shift(); // remove item that was inserted
     if (iList.items.length !== 0){
-        FPGrowthInsert(tree, node, iList);
+        FPGrowthInsert(tree, newNode, iList);
     }
 }
 
