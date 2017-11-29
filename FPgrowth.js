@@ -85,13 +85,12 @@ console.log(frequentItemSets);
 //      patern: the pattern that the conditional base is build upon
 // returns: No return value. frequent patterns are added to global variable "frequentItemSets"
 function FPgrowth(tree, pattern = null){
-
     if (singlePath(tree.root)){
-        var path = tree.header[tree.header.length - 1].list[0].getPath();
+        var path = tree.header[tree.header.length - 1].list[0].getPath().slice(1, -1);
         var pathItems = [];
         var combinations = [];
         path.forEach(nodeItem => { // transform prefix path into conditional pattern
-            if(nodeItem.model.item != "root" && nodeItem.model.item != pattern.item){
+            if(nodeItem.model.item != "root"){
                 pathItems.push({item: nodeItem.model.item, support: nodeItem.model.support});
             }
         });
@@ -110,6 +109,9 @@ function FPgrowth(tree, pattern = null){
                 }
             });
             frequentSet.support = minItemSupport > pattern.support ? pattern.support : minItemSupport;
+            if(pattern != null){
+                frequentSet.items.push(tree.header[tree.header.length - 1].list[0].model.item);
+            }
             frequentItemSets.push(frequentSet); // add to the final set
         });
     } else {
