@@ -12,7 +12,7 @@ TreeModel.prototype.initialize = function(){
 
 
 
-var minSup = 5; // minimum support
+var minSup = 4; // minimum support
 
 // Read ordered and pruned db into memory
 var orderedTracks = JSON.parse(fs.readFileSync("./JSON/FPgrowthDB.json", 'utf8'));
@@ -22,8 +22,8 @@ var headerFile = JSON.parse(fs.readFileSync("./JSON/FPgrowthHeader.json", 'utf8'
 // ---------------- constructing initial FPTree from database ----------------
 
 var FPTree = new TreeModel(); // initialize FPTree
-
 FPTree.initialize();
+FPTree.header = headerFile;
 FPTree.header.forEach(element => { // add empty array to each header item
     element['list'] = [];
 });
@@ -31,21 +31,29 @@ FPTree.header.forEach(element => { // add empty array to each header item
 
 // Build multi dimensional array and dictionaries
 for (let i = 1, len = headerFile.length - 1; i <= len; i++){ // start the index at the second element
-    FPTree.FPArray.Y[headerFile[i]] = i - 1; // add y value to dictionary
-    FPTree.FPArray.X[headerFile[i - 1]] = i - 1; // add x value to dictionary
+    FPTree.FPArray.Y[headerFile[i].item] = i - 1; // add y value to dictionary
+    FPTree.FPArray.X[headerFile[i - 1].item] = i - 1; // add x value to dictionary
     FPTree.FPArray.push([]); // initialize empty array at end of array
     for (let j = 0; j < i; j++){
         FPTree.FPArray[FPTree.FPArray.length - 1].push(0);
     }
 }
 
+
 // Build FPTree 
 
 // insert all of the transactions into the fp tree
+console.log(FPTree.FPArray.Y);
+console.log(FPTree.FPArray.X);
 orderedTracks.forEach(track => {
     FPTreeInsert(FPTree, FPTree.root, track);
 });
 
+
+FPTree.FPArray.forEach(element =>{
+    console.log(JSON.stringify(element));
+});
+    
 
 // Inserts items from a list into the tree and adds new nodes to the lists in 
 // the header. Recursively calls FPGrowthInsert until the list is empty.
@@ -56,6 +64,7 @@ orderedTracks.forEach(track => {
 //      row:      transaction.
 // returns: No return value
 function FPTreeInsert(tree, node, track){
+    FPArrayInc(tree.FPArray, track);
     var found = false;
     var newNode = {};
     if (node.hasChildren()) { // if node has children
@@ -87,7 +96,6 @@ function FPTreeInsert(tree, node, track){
 }
 
 
-
 // takes an FPArray and a row and increments the array in the correct places
 //  prams:
 //      FPArray: multidimensional array 
@@ -98,10 +106,18 @@ function FPArrayInc(FPArray, row){
     // e.g. input array [1, 2, 3, 4]
     //      pairs       [1, 2], [1, 3], [1, 4], [2, 3], [2, 4], [3, 4]
     for(let i = 0, len = row.length; i < (len - 1); i++){ // for each element except the last one
-        var firstIndex = row[i];
+        var firstItem = row[i];
         for (let j = i + 1; j < len; j++){
             var secondItem = row[j];
-            console.log(firstItem + ", " + secondItem);
+            // because the array is not symmetrical y index should always be larger than x
+            if (FPArray.Y[secondItem] >= FPArray.X[firstItem]){
+                var yIndex = FPArray.Y[secondItem];
+                var xIndex = FPArray.X[firstItem];
+            } else {
+                var yIndex = FPArray.Y[firstItem];
+                var xIndex = FPArray.X[secondItem];
+            }
+            FPArray[yIndex][xIndex] += 1;
         }
     }
 }

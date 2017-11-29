@@ -32,9 +32,9 @@ function preformSearch(index){
         spotifyApi.setAccessToken(data.body['access_token']); // save access token to api object 
         var searches = [];
         // Query spotify servers for songs by genre
-        while(index < (oldIndex + 3)){
+        while(index < (oldIndex + 1)){
             genres.forEach(genre => {
-                searches.push(spotifyApi.searchTracks("genre:" + genre, {limit : 50, offset:(index*50)}).then(function(data){ 
+                searches.push(spotifyApi.searchTracks("genre:" + genre, {limit : 5, offset:(index*50)}).then(function(data){ 
                     data.body.tracks.items.forEach(element => {
                         //unPROCESSED.push(JSON.stringify(element));
                         trackJSON.push({
@@ -54,7 +54,7 @@ function preformSearch(index){
         bb.all(searches).done(function(){
             console.log("Length with duplicates: " + trackJSON.length);
 
-            if (trackJSON.length > 10000){
+            if (trackJSON.length > 10){
                 trackJSON = _.uniqWith(trackJSON, _.isEqual); // remove duplicate search values
                 fs.writeFile("./JSON/tracks.json", JSON.stringify(trackJSON), function(err){
                 if (err) {return console.log("an error occurred while writing JSON file:", err)}
@@ -105,5 +105,6 @@ function nameArrayifyer(name){
     name = name.toLowerCase();
     name = name.replace(" -", ""); // remove extraneous hyphens e.g. "data-mining" will keep the hyphen but not "rocky - radio edit"
     name = name.replace(/[\u2000-\u206F\u2E00-\u2E7F\\'!"#$%&()*+,.\/:;<=>?@\[\]^_`{|}~]/g,""); // replace all punctuation besides -
-    return name.split(/[ ,]+/); // splits the string into an array on space or comma
+    name = name.split(/[ ,]+/);
+    return _.uniqWith(name, _.isEqual()); // splits the string into an array on space or comma and removes duplicates
 }
