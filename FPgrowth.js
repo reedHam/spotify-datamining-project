@@ -171,7 +171,6 @@ function singlePath(root){
 // returns: database of conditional patterns
 function createConditionalBase(list){
     var conditionalBase = [];
-    var leafNode = list[0].model.item;
     list.forEach(node => {
         var leafSupport = node.model.support;
         var prefixPath = node.getPath().slice(1, -1); // remove the root and leaf node leaving only the prefix path

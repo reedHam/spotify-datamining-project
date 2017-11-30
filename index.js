@@ -1,3 +1,4 @@
+
 var SpotifyWebApi = require("spotify-web-api-node");
 var _ = require("lodash");
 var bb = require("bluebird");
@@ -15,7 +16,7 @@ var searchIndex = 0;
 var trackJSON = [];
 var unPROCESSED = [];
 var genres = ["Metal", "pop", "folk", "country", "rock", "hip hop", "reggae", "jazz", "edm", "classical", "blues", "indie", "r&b", "alterative rock", "rap"]; // array of genres to loop through // TODO add genres
-
+var error = false;
 preformSearch(searchIndex);
 
 // this function preforms a batch of searches and recursively calls its self until the desired number of records is reached\
@@ -24,17 +25,13 @@ preformSearch(searchIndex);
 function preformSearch(index){
     let oldIndex = index;
     spotifyApi.clientCredentialsGrant().then(function(data){
-
-        console.log('The access token expires in ' + data.body['expires_in']);
-        console.log('The access token is ' + data.body['access_token']);
-
         // Retrieve access token from SpotifyWebApi endpoint
         spotifyApi.setAccessToken(data.body['access_token']); // save access token to api object 
         var searches = [];
         // Query spotify servers for songs by genre
-        while(index < (oldIndex + 1)){
+        while(index < (oldIndex + 2)){
             genres.forEach(genre => {
-                searches.push(spotifyApi.searchTracks("genre:" + genre, {limit : 5, offset:(index*50)}).then(function(data){ 
+                searches.push(spotifyApi.searchTracks("genre:" + genre, {limit : 50, offset:(index*50)}).then(function(data){ 
                     data.body.tracks.items.forEach(element => {
                         //unPROCESSED.push(JSON.stringify(element));
                         trackJSON.push({
@@ -44,6 +41,7 @@ function preformSearch(index){
                         });
                     });
                 }, function(err){
+                    error = true;
                     console.log("an error occurred while querying", err);
                 }));
             });
@@ -54,17 +52,22 @@ function preformSearch(index){
         bb.all(searches).done(function(){
             console.log("Length with duplicates: " + trackJSON.length);
 
-            if (trackJSON.length > 10){
+            if (trackJSON.length > 20000){
                 trackJSON = _.uniqWith(trackJSON, _.isEqual); // remove duplicate search values
                 fs.writeFile("./JSON/tracks.json", JSON.stringify(trackJSON), function(err){
                 if (err) {return console.log("an error occurred while writing JSON file:", err)}
                 console.log("successfully wrote JSON array of " + trackJSON.length + " length.");
                 });
             } else {
-                preformSearch(index);
-            }
-    
-            
+                if (error) {
+                    return delay(3000).then(function(){
+                        preformSearch(index);
+                    });
+                } else {
+                    return preformSearch(index);
+                }
+                
+            }   
         });
     
     }, function(err){
@@ -72,6 +75,11 @@ function preformSearch(index){
     });
 }
 
+function delay(t) {
+    return new Promise(function(resolve) { 
+        setTimeout(resolve, t)
+    });
+ }
 
 // categorizes data popular data for better frequent pattern matching
 //  prams:
