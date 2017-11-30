@@ -64,8 +64,11 @@ testingDB.forEach(track => {
     if (FPTree.header.length > 2) { // array cannot be build with only 2 items
         FPArrayInc(FPTree.FPArray, track);
     }
-    FPTreeInsert(FPTree, FPTree.root, track);
+    FPTreeInsert(FPTree, track);
 });
+
+FPGrowthPlus(FPTree);
+
 
 // DEBUG
 console.log(FPTree.FPArray.Y);
@@ -76,15 +79,16 @@ FPTree.FPArray.forEach(element =>{
 FPtreeTest(FPTree);
 printTree(FPTree.root, FPTree.root);
 
+
 // Inserts items from a list into the tree and adds new nodes to the lists in 
-// the header. Recursively calls FPGrowthInsert until the list is empty.
+// the header. Recursively calls FPTreeInsert until the list is empty.
 // Prams:
 //      tree:     Tree that contains the header that will have new nodes added 
 //                to its lists.
 //      node:     Node that will have its children checked.
 //      row:      transaction.
 // returns: No return value
-function FPTreeInsert(tree, node, track){
+function FPTreeInsert(tree, track, node = tree.root){
     var found = false;
     var newNode = {};
     if (node.hasChildren()) { // if node has children
@@ -111,7 +115,7 @@ function FPTreeInsert(tree, node, track){
     }
     track.shift(); // remove item that was inserted
     if (track.length !== 0){
-        FPTreeInsert(tree, newNode, track);
+        FPTreeInsert(tree, track, newNode);
     }
 }
 
@@ -120,7 +124,7 @@ function FPTreeInsert(tree, node, track){
 // ------------------------- FPGrowth* --------------------------------
 
 function FPGrowthPlus(tree){
-    if (singlePath(tree)){
+    if (singlePath(tree.root)){
 
     } else {
         // for each item in the header starting with lowest support
@@ -130,22 +134,86 @@ function FPGrowthPlus(tree){
             newTree.initialize(tree.header[i].item);
 
             // add frequent pattern at i U tree.base
-            AllFPs.push({items: [].push(tree.base).push(newTree.base), support: tree.header[i].support});
-
-            if (tree.FPArray.length < 1){ // the fp array has items in it
-                var newHeader = [];
+            var newPattern = [];
+            newPattern.push(tree.base);
+            newPattern.push(newTree.base);
+            AllFPs.push({items: newPattern, support: tree.header[i].support});
+            
+            // build header
+            if (tree.FPArray.length > 1){ // the fp array has items in it
                 // build header from array
-                tree.FPArray[tree.FPArray.Y[tree.base]].forEach(function(value, index){ 
-                    if (value > minSup){
-                        var itemName = _.findKey(tree.FPArray.X, index);
-                        newHeader.push({item: itemName, support: value, list: []});
-                    }
-                });
+                console.log(newTree.base);
+                if (tree.FPArray.Y[newTree.base] != undefined){
+                    tree.FPArray[tree.FPArray.Y[newTree.base]].forEach(function(value, index){ 
+                        if (value >= minSup){
+                            var itemName = "";
+                            _.forIn(tree.FPArray.X, function(value, key){
+                                if (value == index){
+                                    itemName = key;
+                                }
+                            });
+                            
+                            newTree.header.push({item: itemName, support: value, list: []});
+                        }
+                    });
+                }
             } else {
                 // construct header from tree paths
+                tree.header[i].list.forEach(node => {
+                    let path = node.getPath().slice(1, -1);
+                    path.forEach(element => {
+                        if (element.model.support >= minSup){
+                            newTree.header.push({item: element.model.item, support: element.model.support, list: []});
+                        }
+                    });
+                });
             }
+
+            // sort header collection in ascending order
+            newTree.header.sort(function(a, b){ 
+                if (a.support < b.support){
+                    return 1;
+                } else if (a.support > b.support){
+                    return -1;
+                } else {
+                    return 0;
+                }
+            });
+            console.log(newTree.header);
+            
+            // construct conditional base
+            var conDB = [];
+            tree.header[i].list.forEach(leaf => {
+                var conPattern = [];
+                var leafSupport = leaf.model.support;
+                var prefixPath = leaf.getPath().slice(1, -1);
+                
+                // for each item in the new header
+                newTree.header.forEach(element => {
+                    // check starting with highest support
+                    // if a node.item matches the header header item 
+                    // add it to the pattern and break out of the loop
+                    var found = false;
+                    var index = 0;
+                    while(!found && index < prefixPath.length){
+                        if(prefixPath[index].model.item == element.item){
+                            conPattern.push(prefixPath[index].model.item);
+                            found = true;
+                        }
+                        index++;
+                    }
+                });
+                // dont add a pattern with no items
+                if (conPattern.length > 0){
+                    conDB.push({items: conPattern, support: leafSupport});
+                }
+            });
+            console.log(conDB);
+            
             // build FPTree for element at i
             // build FPArray if header.length > 2
+
+
             if (newTree.root.hasChildren()){
 
             }
@@ -153,6 +221,44 @@ function FPGrowthPlus(tree){
     }
 }
 
+// Inserts items from a list into the tree and adds new nodes to the lists in 
+// the header. Recursively calls FPGrowthPlusInsert until the list is empty.
+// Prams:
+//      tree:     Tree that contains the header that will have new nodes added 
+//                to its lists.
+//      node:     Node that will have its children checked.
+//      row:      transaction.
+// returns: No return value
+function FPGrowthPlusInsert(tree, track, node = tree.root){
+    var found = false;
+    var newNode = {};
+    if (node.hasChildren()) { // if node has children
+        // check if item matches any of node's children
+        for(var i = 0, len = node.children.length; i < len; i++) {
+            if (node.children[i].model.item == track[0]){ // if the child matches the item
+                found = true;
+                node.children[i].model.support++;
+                newNode = node.children[i];
+            } 
+        };
+    }
+    if (!found){ // node not found so insert it
+        newNode = node.addChild(tree.parse({
+            item: track[0], 
+            support: 1
+        }));
+        for(let i = 0, len = tree.header.length; i < len; i++){
+            if (tree.header[i].item == track[0]){
+                tree.header[i].list.push(newNode);
+            }
+        }
+        
+    }
+    track.shift(); // remove item that was inserted
+    if (track.length !== 0){
+        FPTreeInsert(tree, track, newNode);
+    }
+}
 
 // Checks if a tree is a single path
 // prams: 
