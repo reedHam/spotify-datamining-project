@@ -5,7 +5,8 @@ TreeModel.prototype.initialize = function(base = null){
     this["header"] = [];   // added header attribute for FPgrowth algorithm
     this["FPArray"] = [];    // multi dimensional Array containing frequent item counts 
     this.FPArray["X"] = {};    // Dictionary to translate strings into indexes for x axis 
-    this.FPArray["Y"] = {};    // Dictionary to translate strings into indexes for y axis 
+    this.FPArray["Y"] = {};    // Dictionary to translate strings into indexes for y axis
+    this.FPArray["Xk"] = [];    // Dictionary to translate strings into indexes for x axis 
     this["root"] = this.parse({item: "root"});     // root of the tree
     this["base"] = base; // what the tree was produced using
 }
@@ -20,17 +21,20 @@ testingDB = [
     ["I2", "I3"],
     ["I1", "I3"],
     ["I2", "I1", "I3", "I5"],
+    ["I2", "I1", "I3", "I4"],
+    ["I2", "I1", "I3", "I4"],
+    ["I1", "I3", "I4"],
     ["I2", "I1", "I3"]
 ];
 testingHeader = [
-    {item:"I2", support: 7},
-    {item:"I1", support: 6},
-    {item:"I3", support: 6},
-    {item:"I4", support: 2},
+    {item:"I2", support: 9},
+    {item:"I1", support: 9},
+    {item:"I3", support: 9},
+    {item:"I4", support: 5},
     {item:"I5", support: 2},
 ];
 
-var minSup = 5; // minimum support
+var minSup = 2; // minimum support
 var AllFPs = [];
 // Read ordered and pruned db into memory
 var orderedTracks = JSON.parse(fs.readFileSync("./JSON/FPgrowthDB.json", 'utf8'));
@@ -41,6 +45,7 @@ var headerFile = JSON.parse(fs.readFileSync("./JSON/FPgrowthHeader.json", 'utf8'
 
 
 // ---------------- constructing initial FPTree from database ----------------
+console.time("FPgrowth+");
 var FPTree = new TreeModel(); // initialize FPTree
 FPTree.initialize();
 FPTree.header = headerFile;
@@ -49,14 +54,9 @@ FPTree.header.forEach(element => { // add empty array to each header item
 });
 
 // Build multi dimensional array and dictionaries
-for (let i = 1, len = FPTree.header.length - 1; i <= len; i++){ // start the index at the second element
-    FPTree.FPArray.Y[FPTree.header[i].item] = i - 1; // add y value to dictionary
-    FPTree.FPArray.X[FPTree.header[i - 1].item] = i - 1; // add x value to dictionary
-    FPTree.FPArray.push([]); // initialize empty array
-    for (let j = 0; j < i; j++){ // insert 0 for header.length - 1 items
-        FPTree.FPArray[FPTree.FPArray.length - 1].push(0);
-    }
-}
+
+initMatrix(FPTree);
+
 
 // Build FPTree 
 // insert all of the transactions into the fp tree
@@ -69,8 +69,10 @@ orderedTracks.forEach(track => {
 
 // generate frequent items
 FPGrowthPlus(FPTree);
+console.timeEnd("FPgrowth+");
+
 var fourFPs = AllFPs.filter(function(value){
-    return value.pattern.length > 2;
+    return value.pattern.length > 1;
 }).sort(function(a, b){ // sort collection in descending order
     if (a.support < b.support){
         return 1;
@@ -161,13 +163,14 @@ function FPGrowthPlus(tree){
     } else {
         // for each item in the header starting with lowest support
         for (let i = tree.header.length - 1; i >= 0; i--){
-            
             var newPattern = tree.base != null ? tree.base.concat([tree.header[i].item]) : [tree.header[i].item];
+            
             // initialize tree for the new pattern
             var newTree = new TreeModel();
             newTree.initialize(newPattern);
 
             AllFPs.push({pattern: newPattern, support: tree.header[i].support});
+
             
             // build header
             if (tree.FPArray.length > 1){ // the fp array has items in it
@@ -175,32 +178,35 @@ function FPGrowthPlus(tree){
                 if (tree.FPArray.Y[tree.header[i].item] != undefined){
                     tree.FPArray[tree.FPArray.Y[tree.header[i].item]].forEach(function(value, index){ 
                         if (value >= minSup){
-                            var itemName = "";
-                            _.forIn(tree.FPArray.X, function(value, key){
-                                if (value == index){
-                                    itemName = key;
-                                }
-                            });
-                            newTree.header.push({item: itemName, support: value, list: []});
+                            newTree.header.push({item: tree.FPArray.Xk[index], support: value, list: []});
                         }
                     });
                 }
             } else {
                 // construct header from tree paths
                 tree.header[i].list.forEach(listNode => {
+                    var leafSup = listNode.model.support;
+                    // get the path
                     let path = listNode.getPath().slice(1, -1);
-                    path.forEach(node => {
+                    // for each node on the path
+                    for(let j = 0, len = path.length; j < len; j++){
                         let found = false;
-                        newTree.header.forEach(headItem => {
-                            if(headItem.item == node.model.item){
-                                headItem.support += node.support;
+                        let index = 0;
+                        // check if it is in the header
+                        while(!found && index < newTree.header.length){
+                            if (newTree.header[index].item == path[j].model.item){
+                                newTree.header[index].support += leafSup;
                                 found = true;
                             }
-                        });
-                        if (!found){
-                            newTree.header.push({item: node.model.item, support: node.model.support, list: []});
+                            index++; 
                         }
-                    });
+                        if (!found){
+                            newTree.header.push({item: path[j].model.item, support: leafSup, list: []});
+                        }
+                    }
+                });
+                newTree.header = newTree.header.filter(function(value){
+                    return value.support >= minSup;
                 });
             }
 
@@ -214,6 +220,12 @@ function FPGrowthPlus(tree){
                     return 0;
                 }
             });
+
+            // initalise newTree's FParray to 0's
+            if (newTree.header.length > 2) {
+                initMatrix(newTree);
+            }
+
             // construct conditional base
             var conDB = [];
             tree.header[i].list.forEach(leaf => {
@@ -238,19 +250,12 @@ function FPGrowthPlus(tree){
                 });
                 // dont add a pattern with no items
                 if (conPattern.length > 0){
-                    conDB.push({items: conPattern, support: leafSupport});
+                    if (newTree.header.length > 2) { // array cannot be build with only 2 items
+                        FPArrayInc(newTree.FPArray, conPattern);
+                    }
+                    FPGrowthPlusInsert(newTree, {items: conPattern, support: leafSupport});
                 }
             });
-
-            // build FPTree for element at i
-            // build FPArray if header.length > 2
-            conDB.forEach(row => {
-                if (newTree.header.length > 2) { // array cannot be build with only 2 items
-                    FPArrayInc(newTree.FPArray, row);
-                }
-                FPGrowthPlusInsert(newTree, row);
-            });
-
             if (newTree.root.hasChildren()){
                 FPGrowthPlus(newTree);
             }
@@ -312,6 +317,18 @@ function singlePath(root){
     return true;
 }
 
+function initMatrix(tree){
+    for (let i = 1, len = tree.header.length - 1; i <= len; i++){ // start the index at the second element
+        tree.FPArray.Y[tree.header[i].item] = i - 1; // add y value to dictionary
+        tree.FPArray.X[tree.header[i - 1].item] = i - 1; // add x value to dictionary
+        tree.FPArray.Xk.push(tree.header[i - 1].item); // add x value to dictionary
+        tree.FPArray.push([]); // initialize empty array
+        for (let j = 0; j < i; j++){ // insert 0 for header.length - 1 items
+            tree.FPArray[tree.FPArray.length - 1].push(0);
+        }
+    }
+}
+
 // takes an FPArray and a row and increments the array in the correct places
 //  prams:
 //      FPArray: multidimensional array 
@@ -335,7 +352,7 @@ function FPArrayInc(FPArray, row){
                 var yIndex = FPArray.Y[firstItem];
                 var xIndex = FPArray.X[secondItem];
             }
-            //console.log("first: " + firstItem + " | second: "  + secondItem); DEBUG
+            //console.log("first: " + firstItem + " | second: "  + secondItem); // DEBUG
             FPArray[yIndex][xIndex] += 1;
         }
     }

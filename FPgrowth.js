@@ -1,73 +1,66 @@
 var fs = require("fs");
 var _ = require("lodash");
 var TreeModel = require("tree-model");
+TreeModel.prototype.initialize = function(base = null){
+    this["header"] = [];   // added header attribute for FPgrowth algorithm
+    this["root"] = this.parse({item: "root"});     // root of the tree
+    this["base"] = base; // what the tree was produced using
+}
 
-TreeModel["header"] = []; // added header attribute for FPgrowth algorithm
-// takes an item support and node then looks up the item and returns the index
-TreeModel.prototype.itemToindex = function(item){
-    var result = -1;
-    this.header.forEach(function(head, index){
-        if (head.item == item){
-            result = index;
-        } 
-    });
-    return result;
-};
+// testingDB and testingHeader are taken from the data mining textbook pg 258
+testingDB = [
+    ["I2", "I1", "I5"],
+    ["I2", "I4"],
+    ["I2", "I3"],
+    ["I2", "I1", "I4"],
+    ["I1", "I3"],
+    ["I2", "I3"],
+    ["I1", "I3"],
+    ["I2", "I1", "I3", "I5"],
+    ["I2", "I1", "I3"]
+];
+testingHeader = [
+    {item:"I2", support: 7},
+    {item:"I1", support: 6},
+    {item:"I3", support: 6},
+    {item:"I4", support: 2},
+    {item:"I5", support: 2},
+];
 
+var minSup = 2; // minimum support
+var AllFPs = [];
 // Read ordered and pruned db into memory
 var orderedTracks = JSON.parse(fs.readFileSync("./JSON/FPgrowthDB.json", 'utf8'));
 // read header for FP tree
 var headerFile = JSON.parse(fs.readFileSync("./JSON/FPgrowthHeader.json", 'utf8'));
-var minSup = 5; // minimum support
 
 
-// ---------------------------- creating FPtree -----------------------------------
-var FPtree = new TreeModel();
-FPtree.header = headerFile;
-FPtree["root"] = FPtree.parse({item: "root"});
 
 
-// add an empty list for each frequent 1-itemset
-FPtree.header.forEach(element => {
-    element["list"] = []; 
+// ---------------- constructing initial FPTree from database ----------------
+console.time("FPgrowth");
+var FPTree = new TreeModel(); // initialize FPTree
+FPTree.initialize();
+FPTree.header = headerFile;
+FPTree.header.forEach(element => { // add empty array to each header item
+    element['list'] = [];
 });
 
-//  current node stores the results of the insertion allowing subsequent 
-//  items to be added to children of successfully operations
+
+// Build FPTree 
+// insert all of the transactions into the fp tree
 orderedTracks.forEach(track => {
-    var currentNode = FPtree.root;             
-    for(var i = 0, len =  track.length; i < len; i++){
-        currentNode = FPtreeInsert(currentNode, track[i]);
-    };
+    FPTreeInsert(FPTree, track);
 });
 
-// takes a node and an item and inserts it into the FPtree based on the FPtree rules
-// Adds any newly created nodes into the lists located in the header
-// Prams: 
-//      node: node that should have its children checked for item matches
-//      item: item to evaluate and insert into tree 
-// returns: the node that the item evaluated too
-function FPtreeInsert(node, item){
-    if (node.hasChildren()) { // if node has no children
-        for(var i = 0, len = node.children.length; i < len; i++) {
-            if (node.children[i].model.item == item){ // if the child matches the item
-                node.children[i].model.support++;
-                return node.children[i];
-            } 
-        };
-    }
-    for(var i = 0, len =  FPtree.header.length; i < len; i++) { // item does not match any nodes on current level 
-        if (FPtree.header[i].item == item){
-            FPtree.header[i].list.push(node.addChild(FPtree.parse({item: item, support: 1}))); // add a new leaf node to the tree and add it to the linked list
-            return node.children[node.children.length - 1]; // return the new node
-        }
-    };
-}
+// generate frequent items
+FPGrowthPlus(FPTree);
+console.timeEnd("FPgrowth");
 
 
-frequentItemSets = [];
-FPgrowth(FPtree);
-frequentItemSets.sort(function(a, b){ // sort collection in descending order
+var fourFPs = AllFPs.filter(function(value){
+    return value.pattern.length > 1;
+}).sort(function(a, b){ // sort collection in descending order
     if (a.support < b.support){
         return 1;
     } else if (a.support > b.support){
@@ -76,78 +69,203 @@ frequentItemSets.sort(function(a, b){ // sort collection in descending order
         return 0;
     }
 });
-console.log(frequentItemSets);
+console.log(fourFPs);
 
-// ---------------------------- FPtree Mining ---------------------------------
-// Recursively finds all frequent patterns in the FPtree.
-// prams:
-//      tree: the tree to mine
-//      patern: the pattern that the conditional base is build upon
-// returns: No return value. frequent patterns are added to global variable "frequentItemSets"
-function FPgrowth(tree, pattern = null){
-    if (singlePath(tree.root)){
-        var path = tree.header[tree.header.length - 1].list[0].getPath().slice(1, -1);
-        var pathItems = [];
-        var combinations = [];
-        path.forEach(nodeItem => { // transform prefix path into conditional pattern
-            if(nodeItem.model.item != "root"){
-                pathItems.push({item: nodeItem.model.item, support: nodeItem.model.support});
+
+
+// Inserts items from a list into the tree and adds new nodes to the lists in 
+// the header. Recursively calls FPTreeInsert until the list is empty.
+// Prams:
+//      tree:     Tree that contains the header that will have new nodes added 
+//                to its lists.
+//      node:     Node that will have its children checked.
+//      row:      transaction.
+// returns: No return value
+function FPTreeInsert(tree, track, node = tree.root){
+    var found = false;
+    var newNode = {};
+    if (node.hasChildren()) { // if node has children
+        // check if item matches any of node's children
+        for(var i = 0, len = node.children.length; i < len; i++) {
+            if (node.children[i].model.item == track[0]){ // if the child matches the item
+                found = true;
+                node.children[i].model.support++;
+                newNode = node.children[i];
+            } 
+        };
+    }
+    if (!found){ // node not found so insert it
+        newNode = node.addChild(tree.parse({
+            item: track[0], 
+            support: 1
+        }));
+        for(let i = 0, len = tree.header.length; i < len; i++){
+            if (tree.header[i].item == track[0]){
+                tree.header[i].list.push(newNode);
             }
+        }
+        
+    }
+    track.shift(); // remove item that was inserted
+    if (track.length !== 0){
+        FPTreeInsert(tree, track, newNode);
+    }
+}
+
+
+// ------------------------- FPGrowth* --------------------------------
+function FPGrowthPlus(tree){
+    if (singlePath(tree.root)){
+        // generate all combinations of the path and union them with tree.base
+        // gets the path, removes root and removes unwanted tree information
+        var path = tree.header[tree.header.length - 1].list[0].getPath().slice(1).map(function(element){
+            return {item: element.model.item, support: element.model.support};
         });
-        for(let combination of allCombinations(pathItems)){
-            if(combination.length !== 0){
+        
+        var combinations = [];
+        // pushes all combinations of item, support objects into combinations
+        for(let combination of allCombinations(path)){
+            if(combination.length !== 0){ // dont add empty arrays
                 combinations.push(combination);
             }
         }
-        combinations.forEach(set =>{
-            var minItemSupport = set[0].support;
-            var frequentSet = {items:[], support:0};
-            set.forEach(item => {
-                frequentSet.items.push(item.item);
-                if(minItemSupport > item.support){
-                    minItemSupport = item.support;
+        
+        // turn {item, support} combinations into {items:[item, item], support} patterns
+        combinations.forEach(combo => {
+            var supMin = combo[0].support;
+            
+            var itemCombo = [];
+            combo.forEach(item => {
+                itemCombo.push(item.item);
+                // get the lowest support of the combination
+                supMin = supMin > item.support ? item.support : supMin;
+            });
+
+            // union tree.base with pattern
+            itemCombo = tree.base != null ? tree.base.concat(itemCombo) : itemCombo;
+            AllFPs.push({pattern: itemCombo, support: supMin});
+        });
+
+    } else {
+        // for each item in the header starting with lowest support
+        for (let i = tree.header.length - 1; i >= 0; i--){
+            
+            var newPattern = tree.base != null ? tree.base.concat([tree.header[i].item]) : [tree.header[i].item];
+            // initialize tree for the new pattern
+            var newTree = new TreeModel();
+            newTree.initialize(newPattern);
+
+            AllFPs.push({pattern: newPattern, support: tree.header[i].support});
+
+
+            // construct header from tree paths
+            tree.header[i].list.forEach(listNode => {
+                var leafSup = listNode.model.support;
+                // get the path
+                let path = listNode.getPath().slice(1, -1);
+                // for each node on the path
+                for(let j = 0, len = path.length; j < len; j++){
+                    let found = false;
+                    let index = 0;
+                    // check if it is in the header
+                    while(!found && index < newTree.header.length){
+                        if (newTree.header[index].item == path[j].model.item){
+                            newTree.header[index].support += leafSup;
+                            found = true;
+                        }
+                        index++; 
+                    }
+                    if (!found){
+                        newTree.header.push({item: path[j].model.item, support: leafSup, list: []});
+                    }
                 }
             });
-            frequentSet.support = minItemSupport > pattern.support ? pattern.support : minItemSupport;
-            if(pattern != null){
-                frequentSet.items.push(tree.header[tree.header.length - 1].list[0].model.item);
-            }
-            frequentItemSets.push(frequentSet); // add to the final set
-        });
-    } else {
-        for (let i = tree.header.length - 1; i >= 0; i--){ // for every item in the header
-            var newPattern = {items: [], support: 0};
-            if (pattern !== null){
-                newPattern.items = pattern.items.slice();
-            } 
-
-            newPattern.items.push(tree.header[i].item);
-            newPattern.support = tree.header[i].support;
-            frequentItemSets.push(newPattern);
             
-            conditionalBase = createConditionalBase(tree.header[i].list);
-            conditionalFPtree = buildFPtree(conditionalBase);
-            if (conditionalFPtree.root.hasChildren()){
-                FPgrowth(conditionalFPtree, newPattern);
+            newTree.header = newTree.header.filter(function(value){
+                return value.support >= minSup;
+            });
+
+            // sort header collection in ascending order
+            newTree.header.sort(function(a, b){ 
+                if (a.support < b.support){
+                    return 1;
+                } else if (a.support > b.support){
+                    return -1;
+                } else {
+                    return 0;
+                }
+            });
+
+            // construct conditional base and create fp tree
+            tree.header[i].list.forEach(leaf => {
+                var conPattern = [];
+                var leafSupport = leaf.model.support;
+                var prefixPath = leaf.getPath().slice(1, -1);
+                
+                // for each item in the new header
+                newTree.header.forEach(element => {
+                    // check starting with highest support
+                    // if a node.item matches the header header item 
+                    // add it to the pattern and break out of the loop
+                    let found = false;
+                    let index = 0;
+                    while(!found && index < prefixPath.length){
+                        if(prefixPath[index].model.item == element.item){
+                            conPattern.push(prefixPath[index].model.item);
+                            found = true;
+                        }
+                        index++;
+                    }
+                });
+                // dont add a pattern with no items
+                if (conPattern.length > 0){
+                    FPGrowthPlusInsert(newTree, {items: conPattern, support: leafSupport});
+                }
+            });
+            if (newTree.root.hasChildren()){
+                FPGrowthPlus(newTree);
             }
         }
     }
 }
 
-
-// Given an array of items this generator will create all possible combinations 
-// reference: https://stackoverflow.com/questions/42773836/how-to-find-all-subsets-of-a-set-in-javascript
-// prams:
-//      array: array to generate power set from
-function* allCombinations(array, offset = 0){
-    while(offset < array.length){
-        let first = array[offset++];
-        for(let combination of allCombinations(array, offset)){
-            combination.push(first);
-            yield combination;
-        }
+// Inserts items from a list into the tree and adds new nodes to the lists in 
+// the header. Recursively calls FPGrowthPlusInsert until the list is empty.
+// Prams:
+//      tree:     Tree that contains the header that will have new nodes added 
+//                to its lists.
+//      node:     Node that will have its children checked.
+//      row:      transaction.
+// returns: No return value
+function FPGrowthPlusInsert(tree, track, node = tree.root){
+    var found = false;
+    var newNode = {};
+    if (node.hasChildren()) { // if node has children
+        // check if item matches any of node's children
+        for(var i = 0, len = node.children.length; i < len; i++) {
+            if (node.children[i].model.item == track.items[0]){ // if the child matches the item
+                found = true;
+                node.children[i].model.support += track.support;
+                newNode = node.children[i];
+            } 
+        };
     }
-    yield [];
+    if (!found){ // node not found so insert it
+        newNode = node.addChild(tree.parse({
+            item: track.items[0], 
+            support: track.support
+        }));
+        for(let i = 0, len = tree.header.length; i < len; i++){
+            if (tree.header[i].item == track.items[0]){
+                tree.header[i].list.push(newNode);
+            }
+        }
+        
+    }
+    track.items.shift(); // remove item that was inserted
+    if (track.items.length !== 0){
+        FPGrowthPlusInsert(tree, track, newNode);
+    }
 }
 
 // Checks if a tree is a single path
@@ -165,146 +283,24 @@ function singlePath(root){
     return true;
 }
 
-// Creates a database of paths to the root
+// Given an array of items this generator will create all possible combinations 
+// reference: https://stackoverflow.com/questions/42773836/how-to-find-all-subsets-of-a-set-in-javascript
 // prams:
-//      tree: Tree that will be used to creat the database
-// returns: database of conditional patterns
-function createConditionalBase(list){
-    var conditionalBase = [];
-    list.forEach(node => {
-        var leafSupport = node.model.support;
-        var prefixPath = node.getPath().slice(1, -1); // remove the root and leaf node leaving only the prefix path
-        var conditionalPattern = [];
-        prefixPath.forEach(nodeItem => { // transform prefix path into conditional pattern
-            conditionalPattern.push(nodeItem.model.item);
-        });
-        conditionalBase.push({
-            items: conditionalPattern,
-            support: leafSupport
-        });
-    });
-    return conditionalBase;
-}
-
-// Initializes the header for a tree by finding every item occurrence
-// and inserting them into the header with a support count for frequency.
-// prams:
-//      tree:   The tree to initialize the header of.
-//      conDB:  Conditional database to initialize the header with.
-// returns: No return value
-function initializeHeader(tree, conDb){
-    tree.header = [];
-    conDb.forEach(element => {
-        element.items.forEach(item => {
-            var found = false;
-            tree.header.forEach(head => {
-                if(head.item == item){
-                    head.support += element.support;
-                    found = true;
-                }
-            });
-            if (!found){
-                tree.header.push({item: item, support: element.support, list: []});
-            }
-        });
-    });  
-
-    tree.header = tree.header.filter(function(x){ // filter values less than min support 
-        return x.support >= minSup;
-    });
-
-    tree.header.sort(function(a, b){ // sort collection in descending order
-        if (a.support < b.support){
-            return 1;
-        } else if (a.support > b.support){
-            return -1;
-        } else {
-            return 0;
+//      array: array to generate power set from
+function* allCombinations(array, offset = 0){
+    while(offset < array.length){
+        let first = array[offset++];
+        for(let combination of allCombinations(array, offset)){
+            combination.push(first);
+            yield combination;
         }
-    });
-}
-
-// Trims the database based on the elements in the header removing items 
-// below the minimum support count.
-// prams:
-//      db:     conditional database to trim
-//      header: header to trim the database with.
-// returns: trimmed conditional database.
-function trimDb(db, header){
-    var trimedDb = [];
-    db.forEach(itemSet => {
-        var trimedItems = [];
-        header.forEach(head => {
-            itemSet.items.forEach(item =>{
-                if (head.item == item){
-                    trimedItems.push(item);
-                }
-            });
-        });
-        if(trimedItems.length !== 0){
-            trimedDb.push({items: trimedItems, support: itemSet.support});
-        }
-    });
-    return trimedDb;
-}
-
-// Inserts items from a list into the tree and adds new nodes to the lists in 
-// the header. Recursively calls FPGrowthInsert until the list is empty.
-// Prams:
-//      tree:       Tree that contains the header that will have new nodes added 
-//                  to its lists.
-//      node:       Node that will have its children checked.
-//      ilist:      Conditional pattern and support object.
-// returns: No return value
-function FPGrowthInsert(tree, node, iList){
-    var found = false;
-    var newNode = {};
-    if (node.hasChildren()) { // if node has children
-        // check if item matches any of node's children
-        for(var i = 0, len = node.children.length; i < len; i++) {
-            if (node.children[i].model.item == iList.items[0]){ // if the child matches the item
-                found = true;
-                node.children[i].model.support += iList.support;
-                newNode = node.children[i];
-            } 
-        };
     }
-    if (!found){ // node not found so insert it
-        newNode = node.addChild(tree.parse({
-            item: iList.items[0], 
-            support: iList.support
-        }));
-        for(let i = 0, len = tree.header.length; i < len; i++){
-            if (tree.header[i].item == iList.items[0]){
-                tree.header[i].list.push(newNode);
-            }
-        }
-        
-    }
-    iList.items.shift(); // remove item that was inserted
-    if (iList.items.length !== 0){
-        FPGrowthInsert(tree, newNode, iList);
-    }
+    yield [];
 }
 
-//  Builds an fp tree from a conditional pattern database
-//  prams:
-//      conditionalBase: database of conditional patterns
-//  returns: constructed fp tree
-function buildFPtree(conditionalBase){
-    var conditionalFPtree = new TreeModel();
-    conditionalFPtree["root"] = conditionalFPtree.parse({item: "root"})
-    initializeHeader(conditionalFPtree, conditionalBase);
-    conditionalBase = trimDb(conditionalBase, conditionalFPtree.header);
-
-    conditionalBase.forEach(iList => {
-            FPGrowthInsert(conditionalFPtree, conditionalFPtree.root, iList);
-    });
-    return conditionalFPtree;
-}
 
 // --------------------- DEBUG --------------------
-// Debuging function checks the support of all the nodes in the list vs the values in the header table
+// Debugging function checks the support of all the nodes in the list vs the values in the header table
 function FPtreeTest(tree){
     var fail = false;
     tree.header.forEach(element => {
@@ -325,7 +321,7 @@ function FPtreeTest(tree){
     }
 }
 
-function printTree(node, parent, level = -1){  
+function printTree(node, parent = node, level = -1){  
     var indentation = "";
     var heritage = "";
     for (let i = 0; i < level; i++){
