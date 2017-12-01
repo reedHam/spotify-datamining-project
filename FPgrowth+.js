@@ -1,7 +1,7 @@
 var fs = require("fs");
 var _ = require("lodash");
 var TreeModel = require("tree-model");
-TreeModel.prototype.initialize = function(base = null){
+TreeModel.prototype.FPinitialize = function(base = null){
     this["header"] = [];   // added header attribute for FPgrowth algorithm
     this["FPArray"] = [];    // multi dimensional Array containing frequent item counts 
     this.FPArray["X"] = {};    // Dictionary to translate strings into indexes for x axis 
@@ -11,30 +11,33 @@ TreeModel.prototype.initialize = function(base = null){
     this["base"] = base; // what the tree was produced using
 }
 
-// testingDB and testingHeader are taken from the data mining textbook pg 258
+TreeModel.prototype.MFIinitialize = function(base = null){
+    this["header"] = [];   // added header attribute for FPgrowth algorithm
+    this["root"] = this.parse({item: "root"});     // root of the tree
+    this["base"] = base; // what the tree was produced using
+}
+
+
 testingDB = [
-    ["I2", "I1", "I5"],
-    ["I2", "I4"],
-    ["I2", "I3"],
-    ["I2", "I1", "I4"],
-    ["I1", "I3"],
-    ["I2", "I3"],
-    ["I1", "I3"],
-    ["I2", "I1", "I3", "I5"],
-    ["I2", "I1", "I3", "I4"],
-    ["I2", "I1", "I3", "I4"],
-    ["I1", "I3", "I4"],
-    ["I2", "I1", "I3"]
+    ["a", "d", "e"],
+    ["b", "a", "g", "f"],
+    ["b", "a", "d", "f"],
+    ["b", "a", "c"],
+    ["a", "d", "g"],
+    ["b", "d", "g", "c"],
+    ["b", "d", "g", "e"],
 ];
 testingHeader = [
-    {item:"I2", support: 9},
-    {item:"I1", support: 9},
-    {item:"I3", support: 9},
-    {item:"I4", support: 5},
-    {item:"I5", support: 2},
+    {item:"b", support: 5},
+    {item:"a", support: 5},
+    {item:"d", support: 6},
+    {item:"g", support: 2},
+    {item:"f", support: 2},
+    {item:"e", support: 2},
+    {item:"c", support: 2},
 ];
 
-var minSup = 3; // minimum support
+var minSup = 2; // minimum support
 var AllFPs = [];
 // Read ordered and pruned db into memory
 var orderedTracks = JSON.parse(fs.readFileSync("./JSON/FPgrowthDB.json", 'utf8'));
@@ -45,46 +48,35 @@ var headerFile = JSON.parse(fs.readFileSync("./JSON/FPgrowthHeader.json", 'utf8'
 
 
 // ---------------- constructing initial FPTree from database ----------------
-console.time("FPgrowth+");
 var FPTree = new TreeModel(); // initialize FPTree
-FPTree.initialize();
-FPTree.header = headerFile;
+FPTree.FPinitialize();
+FPTree.header = testingHeader;
 FPTree.header.forEach(element => { // add empty array to each header item
     element['list'] = [];
 });
-
 // Build multi dimensional array and dictionaries
-
 initMatrix(FPTree);
+
+
+
+// initialize MFTree
+var MFTree = new TreeModel()
+MFTree.MFIinitialize();
+
 
 
 // Build FPTree 
 // insert all of the transactions into the fp tree
-orderedTracks.forEach(track => {
+testingDB.forEach(track => {
     if (FPTree.header.length > 2) { // array cannot be build with only 2 items
         FPArrayInc(FPTree.FPArray, track);
     }
     FPTreeInsert(FPTree, track);
 });
 
-// generate frequent items
-FPGrowthPlus(FPTree);
-console.timeEnd("FPgrowth+");
-
-var fourFPs = AllFPs.filter(function(value){
-    return value.pattern.length > 1;
-}).sort(function(a, b){ // sort collection in descending order
-    if (a.support < b.support){
-        return 1;
-    } else if (a.support > b.support){
-        return -1;
-    } else {
-        return 0;
-    }
-});
-console.log(fourFPs);
-
-
+BuildFPMaxPlus(FPTree, MFTree);
+printTree(MFTree.root);
+console.log(mineMFI(MFTree));
 
 // Inserts items from a list into the tree and adds new nodes to the lists in 
 // the header. Recursively calls FPTreeInsert until the list is empty.
@@ -124,7 +116,6 @@ function FPTreeInsert(tree, track, node = tree.root){
         FPTreeInsert(tree, track, newNode);
     }
 }
-
 
 
 // ------------------------- FPGrowth* --------------------------------
@@ -167,7 +158,7 @@ function FPGrowthPlus(tree){
             
             // initialize tree for the new pattern
             var newTree = new TreeModel();
-            newTree.initialize(newPattern);
+            newTree.FPinitialize(newPattern);
 
             AllFPs.push({pattern: newPattern, support: tree.header[i].support});
 
@@ -300,6 +291,246 @@ function FPGrowthPlusInsert(tree, track, node = tree.root){
     if (track.items.length !== 0){
         FPGrowthPlusInsert(tree, track, newNode);
     }
+}
+
+// --------------------------------- FPMax -----------------------------------
+
+
+
+function BuildFPMaxPlus(tree, MFItree){
+    if (singlePath(tree.root)){
+        if (tree.root.hasChildren()){
+            var MFI = tree.header[tree.header.length - 1].list[0].getPath().slice(1).map(function(element){
+                return element.model.item;
+            });
+            MFIinsert(MFItree, MFI);
+        }
+    } else {
+        // for each item in the header starting with lowest support
+        for (let i = tree.header.length - 1; i >= 0; i--){
+            var newPattern = tree.base != null ? tree.base.concat([tree.header[i].item]) : [tree.header[i].item];
+            var tail = [];
+            // initialize tree for the new pattern
+            var newTree = new TreeModel();
+            newTree.FPinitialize(newPattern);
+            
+            // build header
+            if (tree.FPArray.length > 1){ // the fp array has items in it
+                // build header from array
+                if (tree.FPArray.Y[tree.header[i].item] != undefined){
+                    tree.FPArray[tree.FPArray.Y[tree.header[i].item]].forEach(function(value, index){ 
+                        if (value >= minSup){
+                            newTree.header.push({item: tree.FPArray.Xk[index], support: value, list: []});
+                            // build tail
+                            tail.push(tree.FPArray.Xk[index]);
+                        }
+                    });
+                }
+            } else {
+                // construct header from tree paths
+                tree.header[i].list.forEach(listNode => {
+                    var leafSup = listNode.model.support;
+                    // get the path
+                    let path = listNode.getPath().slice(1, -1);
+                    // for each node on the path
+                    for(let j = 0, len = path.length; j < len; j++){
+                        let found = false;
+                        let index = 0;
+                        // check if it is in the header
+                        while(!found && index < newTree.header.length){
+                            if (newTree.header[index].item == path[j].model.item){
+                                newTree.header[index].support += leafSup;
+                                found = true;
+                            }
+                            index++; 
+                        }
+                        if (!found){
+                            newTree.header.push({item: path[j].model.item, support: leafSup, list: []});
+                        }
+                    }
+                });
+                newTree.header = newTree.header.filter(function(value){
+                    return value.support >= minSup;
+                });
+                // sort header collection in ascending order
+                newTree.header.sort(function(a, b){ 
+                    if (a.support < b.support){
+                        return 1;
+                    } else if (a.support > b.support){
+                        return -1;
+                    } else {
+                        return 0;
+                    }
+                });
+                // build tail
+                tail = newTree.header.map(element => element.item);
+            }
+            
+
+            var newMFITree = new TreeModel();
+            newMFITree.MFIinitialize();
+            newMFITree.header = newTree.header.map(function(value){
+                return {item: value.item, list: []};
+            });
+
+            // base U tail
+            var potentialMFI = tail.concat(newTree.base);
+            console.log(potentialMFI);
+
+            if (!maxCheck(potentialMFI, MFItree)){
+                // initalise newTree's FParray to 0's
+                if (newTree.header.length > 2) {
+                    initMatrix(newTree);
+                }
+
+                // construct conditional base and build tree
+                var conDB = [];
+                tree.header[i].list.forEach(leaf => {
+                    var conPattern = [];
+                    var leafSupport = leaf.model.support;
+                    var prefixPath = leaf.getPath().slice(1, -1);
+                    
+                    // for each item in the new header
+                    newTree.header.forEach(element => {
+                        // check starting with highest support
+                        // if a node.item matches the header header item 
+                        // add it to the pattern and break out of the loop
+                        let found = false;
+                        var index = 0;
+                        while(!found && index < prefixPath.length){
+                            if(prefixPath[index].model.item == element.item){
+                                conPattern.push(prefixPath[index].model.item);
+                                found = true;
+                            }
+                            index++;
+                        }
+                    });
+                    // dont add a pattern with no items
+                    if (conPattern.length > 0){
+                        if (newTree.header.length > 2) { // array cannot be build with only 2 items
+                            FPArrayInc(newTree.FPArray, conPattern);
+                        }
+                        FPGrowthPlusInsert(newTree, {items: conPattern, support: leafSupport});
+                    }
+                });
+
+                // mine conditional MFI's and initialize MFTree
+
+                tree.header[i].list.forEach(leaf => {
+                    var prefixPath = leaf.getPath().slice(1, -1);
+                    var conMFIs = [];
+                    // for each item in the new header
+                    newMFITree.header.forEach(element => {
+                        
+                        // check starting with highest support
+                        // if a node.item matches the header header item 
+                        // add it to the pattern and break out of the loop
+                        let found = false;
+                        var index = 0;
+                        while(!found && index < prefixPath.length){
+                            if(prefixPath[index].model.item == element.item){
+                                conMFIs.push(prefixPath[index].model.item);
+                                found = true;
+                            }
+                            index++;
+                        }
+                    });
+                    
+                    if (conMFIs.length > 0){
+                        MFIinsert(newMFITree, conMFIs);
+                    }
+                });
+                BuildFPMaxPlus(newTree, newMFITree);
+                // merge MFItree with old MFItree
+                mineMFI(newMFITree).forEach(MFI => {
+                    if (!maxCheck(MFI, MFItree)){
+                        MFIinsert(MFItree, MFI);
+                    }
+                });
+            }
+        }
+    }
+}
+
+function mineMFI(MFItree){
+    var MFIs = [];
+    generateMFI(MFItree.root);
+
+    // Preforms a depth first search 
+    function generateMFI(node, MFI = []){
+        if (node.hasChildren()){
+            if (node.model.item != "root"){
+                MFI.push(node.model.item);
+            }
+            var parentPrefix = MFI.slice();
+            node.children.forEach(child => {
+                generateMFI(child, parentPrefix);
+            });
+        } else {
+            if (node.model.item != "root"){
+                MFI.push(node.model.item);
+                MFIs.push(MFI);
+            }
+        }
+    }
+
+    return MFIs;
+}
+
+
+
+function MFIinsert(tree, track, node = tree.root, level = 1){
+    var found = false;
+    var newNode = {};
+    if (node.hasChildren()) { // if node has children
+        // check if item matches any of node's children
+        for(var i = 0, len = node.children.length; i < len; i++) {
+            if (node.children[i].model.item == track[0]){ // if the child matches the item
+                found = true;
+                newNode = node.children[i];
+            } 
+        };
+    }
+    if (!found){ // node not found so insert it
+        newNode = node.addChild(tree.parse({
+            item: track[0], 
+            level: level
+        }));
+        for(let i = 0, len = tree.header.length; i < len; i++){
+            if (tree.header[i].item == track[0]){
+                tree.header[i].list.push(newNode);
+            }
+        }
+    }
+    track.shift(); // remove item that was inserted
+    if (track.length !== 0){
+        level++;
+        MFIinsert(tree, track, newNode, level);
+    }
+}
+
+
+function maxCheck(set, MFItree){
+    var subset = false;
+    for (let i = MFItree.header.length - 1; i >= 0; i--){
+        if (MFItree.header[i].item == set[set.length - 1]){
+            for (let j = 0, len = MFItree.header[i].list.length; j < len; j++){
+                var curNode = MFItree.header[i].list[j];
+                subset = true;
+                _.forEachRight(set, function(setItem){
+                    // if index < curNode.level then the path does not have enough nodes for set to be a subset
+                    if (setItem == curNode.model.item && set.length < curNode.model.level){
+                        curNode = curNode.parent;
+                    } else {
+                        subset = false;
+                        return false; // end forEachRight loop
+                    }
+                });
+            }
+            break;
+        }
+    };
+    return subset;
 }
 
 // Checks if a tree is a single path
