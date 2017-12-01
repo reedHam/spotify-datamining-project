@@ -34,7 +34,7 @@ testingHeader = [
     {item:"I5", support: 2},
 ];
 
-var minSup = 2; // minimum support
+var minSup = 3; // minimum support
 var AllFPs = [];
 // Read ordered and pruned db into memory
 var orderedTracks = JSON.parse(fs.readFileSync("./JSON/FPgrowthDB.json", 'utf8'));

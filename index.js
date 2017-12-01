@@ -52,7 +52,7 @@ function preformSearch(index){
         bb.all(searches).done(function(){
             console.log("Length with duplicates: " + trackJSON.length);
 
-            if (trackJSON.length > 20000){
+            if (trackJSON.length > 5000){
                 trackJSON = _.uniqWith(trackJSON, _.isEqual); // remove duplicate search values
                 fs.writeFile("./JSON/tracks.json", JSON.stringify(trackJSON), function(err){
                 if (err) {return console.log("an error occurred while writing JSON file:", err)}
@@ -69,7 +69,7 @@ function preformSearch(index){
                 
             }   
         });
-    
+     
     }, function(err){
         console.log('Something went wrong when retrieving an access token', err);
     });
