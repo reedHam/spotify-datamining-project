@@ -24,6 +24,7 @@ var genres = ["Metal", "pop", "folk", "country",
 
 preformSearch(searchIndex);
 
+
 // this function preforms a batch of searches and recursively calls its self until the desired number of records is reached\
 // Prams:
 //      index: this is the page index that searches should start at
@@ -34,9 +35,21 @@ function preformSearch(index){
         spotifyApi.setAccessToken(data.body['access_token']); // save access token to api object 
         var searches = [];
         // Query spotify servers for songs by genre
+        spotifyApi.searchTracks("genre:rock", {limit : 1, offset:0}).then(function(data){ 
+            fs.writeFile("./JSON/unprocessedTrackExample.json", JSON.stringify(data), function(err){
+                if (err) {return console.log("an error occurred while writing JSON file:", err)}
+                console.log("successfully wrote JSON array of " + data.length + " length.");
+            });
+        }, function(err){
+            error = true;
+            console.log("an error occurred while querying", err);
+        })
+
+
         while(index < (oldIndex + 1)){
             genres.forEach(genre => {
                 searches.push(spotifyApi.searchTracks("genre:" + genre, {limit : 50, offset:(index*50)}).then(function(data){ 
+                    
                     data.body.tracks.items.forEach(element => {
                         //unPROCESSED.push(JSON.stringify(element));
                         trackJSON.push({
