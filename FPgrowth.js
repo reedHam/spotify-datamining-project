@@ -27,7 +27,7 @@ testingHeader = [
     {item:"I5", support: 2},
 ];
 
-var minSup = 2; // minimum support
+var minSup = 20; // minimum support
 var AllFPs = [];
 // Read ordered and pruned db into memory
 var orderedTracks = JSON.parse(fs.readFileSync("./JSON/FPgrowthDB.json", 'utf8'));
@@ -38,7 +38,7 @@ var headerFile = JSON.parse(fs.readFileSync("./JSON/FPgrowthHeader.json", 'utf8'
 
 
 // ---------------- constructing initial FPTree from database ----------------
-console.time("FPgrowth");
+
 var FPTree = new TreeModel(); // initialize FPTree
 FPTree.initialize();
 FPTree.header = headerFile;
@@ -52,24 +52,13 @@ FPTree.header.forEach(element => { // add empty array to each header item
 orderedTracks.forEach(track => {
     FPTreeInsert(FPTree, track);
 });
-
+console.time("FPgrowth");
 // generate frequent items
 FPGrowthPlus(FPTree);
 console.timeEnd("FPgrowth");
 
 
-var fourFPs = AllFPs.filter(function(value){
-    return value.pattern.length > 1;
-}).sort(function(a, b){ // sort collection in descending order
-    if (a.support < b.support){
-        return 1;
-    } else if (a.support > b.support){
-        return -1;
-    } else {
-        return 0;
-    }
-});
-console.log(fourFPs);
+console.log("Number of Paterns:", AllFPs.length);
 
 
 

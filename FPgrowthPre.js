@@ -7,7 +7,7 @@ var _ = require("lodash");
 
 var tracksJSON = JSON.parse(fs.readFileSync("./JSON/tracks.json", 'utf8')); // read tracks file into memory
 var oneItemSets = [];
-var minSup = 2; // minimum support
+var minSup = 5; // minimum support
 
 tracksJSON.forEach(element => { // for each track tracksJSON
     element.name.forEach(itmName =>{
@@ -60,12 +60,6 @@ tracksJSON.forEach(function(track, index) { // for each track tracksJSON
                 orderedTracks[index].push(name);
             }
         });
-        if (track.popularity == itemSet.item){
-            orderedTracks[index].push(track.popularity);
-        }
-        if (track.genre == itemSet.item){
-            orderedTracks[index].push(track.genre);
-        }
     });
 });
 

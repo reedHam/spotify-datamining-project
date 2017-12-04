@@ -29,15 +29,13 @@ function preformSearch(index){
         spotifyApi.setAccessToken(data.body['access_token']); // save access token to api object 
         var searches = [];
         // Query spotify servers for songs by genre
-        while(index < (oldIndex + 2)){
+        while(index < (oldIndex + 1)){
             genres.forEach(genre => {
                 searches.push(spotifyApi.searchTracks("genre:" + genre, {limit : 50, offset:(index*50)}).then(function(data){ 
                     data.body.tracks.items.forEach(element => {
                         //unPROCESSED.push(JSON.stringify(element));
                         trackJSON.push({
-                            name: nameArrayifyer(element.name),
-                            popularity: popCat(element.popularity),
-                            genre: "genre: " + genre
+                            name: nameArrayifyer(element.name)
                         });
                     });
                 }, function(err){
@@ -52,21 +50,16 @@ function preformSearch(index){
         bb.all(searches).done(function(){
             console.log("Length with duplicates: " + trackJSON.length);
 
-            if (trackJSON.length > 20000){
+            if (trackJSON.length > 15000){
                 trackJSON = _.uniqWith(trackJSON, _.isEqual); // remove duplicate search values
                 fs.writeFile("./JSON/tracks.json", JSON.stringify(trackJSON), function(err){
                 if (err) {return console.log("an error occurred while writing JSON file:", err)}
                 console.log("successfully wrote JSON array of " + trackJSON.length + " length.");
                 });
             } else {
-                if (error) {
-                    return delay(3000).then(function(){
-                        preformSearch(index);
-                    });
-                } else {
-                    return preformSearch(index);
-                }
-                
+                return delay(1000).then(function(){
+                    preformSearch(index);
+                });
             }   
         });
     
