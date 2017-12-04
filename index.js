@@ -15,8 +15,13 @@ var spotifyApi = new SpotifyWebApi({
 var searchIndex = 0;
 var trackJSON = [];
 var unPROCESSED = [];
-var genres = ["Metal", "pop", "folk", "country", "rock", "hip hop", "reggae", "jazz", "edm", "classical", "blues", "indie", "r&b", "alterative rock", "rap"]; // array of genres to loop through // TODO add genres
-var error = false;
+var genres = ["Metal", "pop", "folk", "country", 
+                "rock", "hip hop", "reggae", "jazz", 
+                "edm", "classical", "blues", 
+                "indie", "r&b", "alterative rock", 
+                "rap"]; // array of genres to loop through // TODO add genres
+
+
 preformSearch(searchIndex);
 
 // this function preforms a batch of searches and recursively calls its self until the desired number of records is reached\
@@ -50,7 +55,7 @@ function preformSearch(index){
         bb.all(searches).done(function(){
             console.log("Length with duplicates: " + trackJSON.length);
 
-            if (trackJSON.length > 15000){
+            if (trackJSON.length > 5000){
                 trackJSON = _.uniqWith(trackJSON, _.isEqual); // remove duplicate search values
                 fs.writeFile("./JSON/tracks.json", JSON.stringify(trackJSON), function(err){
                 if (err) {return console.log("an error occurred while writing JSON file:", err)}

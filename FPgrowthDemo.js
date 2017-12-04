@@ -20,6 +20,16 @@ patternSet.sort(function(a, b){
     return  b.support - a.support || a.pattern.length - b.pattern.length || a.pattern[0].localeCompare(b.pattern[0])
 });
 
-patternSet.forEach(element => {
-    console.log(JSON.stringify(element.pattern) + " " + element.support);
-});
+if (patternSet.length < 50){
+    patternSet.forEach(element => {
+        console.log(JSON.stringify(element.pattern) + " " + element.support);
+    });
+} else {
+    console.log("Top 50 patterns: ");
+    for (let i = 0; i < 50; i++){
+        console.log(JSON.stringify(patternSet[i].pattern) + " " + patternSet[i].support);
+    }
+}
+
+console.log("");
+console.log("Total patterns mined ", patternSet.length);

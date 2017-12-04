@@ -40,14 +40,25 @@ module.exports = {
 
         minSup = 2;
 
-
         var FPTree = new TreeModel(); // initialize FPTree
         FPTree.initialize();
         FPTree.header = testingHeader;
         FPTree.header.forEach(element => { // add empty array to each header item
             element['list'] = [];
         });
-        
+
+        console.log();
+        console.log("database: ");
+        testingDB.forEach(element =>{
+            console.log(JSON.stringify(element));
+        });
+
+        console.log();
+        console.log("one item sets: ");
+        FPTree.header.forEach(element =>{
+            console.log(JSON.stringify(element.item + " | " + element.support));
+        });
+
         // Build multi dimensional array and dictionaries
         
         initMatrix(FPTree);
@@ -61,7 +72,11 @@ module.exports = {
             FPTreeInsert(FPTree, track);
         });
 
+        console.log();
+        console.log("FPTree");
         printTree(FPTree.root);
+        
+
         console.log("");
         FPTree.FPArray.forEach( function(array, index) {
                 console.log(FPTree.header[index + 1].item + JSON.stringify(array));
@@ -73,6 +88,7 @@ module.exports = {
                 }
             }
         );
+
         console.log("");
         console.log("");
         console.time("FPgrowth+ Execution time");
@@ -95,7 +111,7 @@ module.exports = {
             this["base"] = base; // what the tree was produced using
         }
                 
-        minSup = 10;
+        minSup = 5;
 
         // Read ordered and pruned db into memory
         var orderedTracks = JSON.parse(fs.readFileSync("./JSON/FPgrowthDB.json", 'utf8'));
@@ -121,7 +137,7 @@ module.exports = {
             }
             FPTreeInsert(FPTree, track);
         });
-        
+
         console.time("FPgrowth+");
         // generate frequent items
         FPGrowthPlus(FPTree);

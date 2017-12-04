@@ -43,7 +43,9 @@ function addToOneSet(item){
         } 
     });
     if (!found){
-        oneItemSets.push({item: item, support: 1});
+        if (item != null){
+            oneItemSets.push({item: item, support: 1});
+        }
     }
 }
 

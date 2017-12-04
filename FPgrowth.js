@@ -41,6 +41,18 @@ module.exports = {
         FPTree.header.forEach(element => { // add empty array to each header item
             element['list'] = [];
         });
+        
+        console.log();
+        console.log("database: ");
+        testingDB.forEach(element =>{
+            console.log(JSON.stringify(element));
+        });
+
+        console.log();
+        console.log("one item sets: ");
+        FPTree.header.forEach(element =>{
+            console.log(JSON.stringify(element.item + " | " + element.support));
+        });
 
         // Build FPTree 
         // insert all of the transactions into the fp tree
@@ -52,6 +64,7 @@ module.exports = {
         
         printTree(FPTree.root);
 
+        console.log("");
         console.time("FPgrowth Execution time");
         // generate frequent items
         FPGrowthPlus(FPTree);
@@ -70,7 +83,7 @@ module.exports = {
             this["base"] = base; // what the tree was produced using
         }
 
-        minSup = 10;
+        minSup = 5;
 
         // Read ordered and pruned db into memory
         var orderedTracks = JSON.parse(fs.readFileSync("./JSON/FPgrowthDB.json", 'utf8'));
