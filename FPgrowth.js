@@ -1,78 +1,122 @@
 var fs = require("fs");
 var _ = require("lodash");
 var TreeModel = require("tree-model");
-TreeModel.prototype.initialize = function(base = null){
-    this["header"] = [];   // added header attribute for FPgrowth algorithm
-    this["root"] = this.parse({item: "root"});     // root of the tree
-    this["base"] = base; // what the tree was produced using
-}
-
-// testingDB and testingHeader are taken from the data mining textbook pg 258
-testingDB = [
-    ["I2", "I1", "I5"],
-    ["I2", "I4"],
-    ["I2", "I3"],
-    ["I2", "I1", "I4"],
-    ["I1", "I3"],
-    ["I2", "I3"],
-    ["I1", "I3"],
-    ["I2", "I1", "I3", "I5"],
-    ["I2", "I1", "I3"]
-];
-testingHeader = [
-    {item:"I2", support: 7},
-    {item:"I1", support: 6},
-    {item:"I3", support: 6},
-    {item:"I4", support: 2},
-    {item:"I5", support: 2},
-];
-
-var minSup = 2; // minimum support
 var AllFPs = [];
-// Read ordered and pruned db into memory
-var orderedTracks = JSON.parse(fs.readFileSync("./JSON/FPgrowthDB.json", 'utf8'));
-// read header for FP tree
-var headerFile = JSON.parse(fs.readFileSync("./JSON/FPgrowthHeader.json", 'utf8'));
+var minSup = 0; // minimum support
+
+module.exports = {
+    demoSmall: function demo(){
+        TreeModel.prototype.initialize = function(base = null){
+            this["header"] = [];   // added header attribute for FPgrowth algorithm
+            this["root"] = this.parse({item: "root"});     // root of the tree
+            this["base"] = base; // what the tree was produced using
+        }
+        
+        // testingDB and testingHeader are taken from the data mining textbook pg 258
+        testingDB = [
+            ["I2", "I1", "I5"],
+            ["I2", "I4"],
+            ["I2", "I3"],
+            ["I2", "I1", "I4"],
+            ["I1", "I3"],
+            ["I2", "I3"],
+            ["I1", "I3"],
+            ["I2", "I1", "I3", "I5"],
+            ["I2", "I1", "I3"]
+        ];
+
+        testingHeader = [
+            {item:"I2", support: 7},
+            {item:"I1", support: 6},
+            {item:"I3", support: 6},
+            {item:"I4", support: 2},
+            {item:"I5", support: 2},
+        ];
+        
+        minSup = 2;
+
+        var FPTree = new TreeModel(); // initialize FPTree
+        FPTree.initialize();
+        FPTree.header = testingHeader;
+        FPTree.header.forEach(element => { // add empty array to each header item
+            element['list'] = [];
+        });
+        
+        console.log();
+        console.log("database: ");
+        testingDB.forEach(element =>{
+            console.log(JSON.stringify(element));
+        });
+
+        console.log();
+        console.log("one item sets: ");
+        FPTree.header.forEach(element =>{
+            console.log(JSON.stringify(element.item + " | " + element.support));
+        });
+
+        // Build FPTree 
+        // insert all of the transactions into the fp tree
+        testingDB.forEach(track => {
+            FPTreeInsert(FPTree, track);
+        });
+
+        console.log("");
+        
+        printTree(FPTree.root);
+
+        console.log("");
+        console.time("FPgrowth Execution time");
+        // generate frequent items
+        FPGrowthPlus(FPTree);
+        console.timeEnd("FPgrowth Execution time");
+
+        return AllFPs;
+    },
 
 
+
+
+    demoLarge: function spoftifyDBDemo(){
+        TreeModel.prototype.initialize = function(base = null){
+            this["header"] = [];   // added header attribute for FPgrowth algorithm
+            this["root"] = this.parse({item: "root"});     // root of the tree
+            this["base"] = base; // what the tree was produced using
+        }
+
+        minSup = 5;
+
+        // Read ordered and pruned db into memory
+        var orderedTracks = JSON.parse(fs.readFileSync("./JSON/FPgrowthDB.json", 'utf8'));
+        // read header for FP tree
+        var headerFile = JSON.parse(fs.readFileSync("./JSON/FPgrowthHeader.json", 'utf8'));
+        
+        var FPTree = new TreeModel(); // initialize FPTree
+        FPTree.initialize();
+        FPTree.header = headerFile;
+        FPTree.header.forEach(element => { // add empty array to each header item
+            element['list'] = [];
+        });
+
+
+        // Build FPTree 
+        // insert all of the transactions into the fp tree
+        orderedTracks.forEach(track => {
+            FPTreeInsert(FPTree, track);
+        });
+
+        console.log("");
+
+        console.time("FPgrowth");
+        // generate frequent items
+        FPGrowthPlus(FPTree);
+        console.timeEnd("FPgrowth");
+        
+        return AllFPs;
+    }
+}
 
 
 // ---------------- constructing initial FPTree from database ----------------
-console.time("FPgrowth");
-var FPTree = new TreeModel(); // initialize FPTree
-FPTree.initialize();
-FPTree.header = headerFile;
-FPTree.header.forEach(element => { // add empty array to each header item
-    element['list'] = [];
-});
-
-
-// Build FPTree 
-// insert all of the transactions into the fp tree
-orderedTracks.forEach(track => {
-    FPTreeInsert(FPTree, track);
-});
-
-// generate frequent items
-FPGrowthPlus(FPTree);
-console.timeEnd("FPgrowth");
-
-
-var fourFPs = AllFPs.filter(function(value){
-    return value.pattern.length > 1;
-}).sort(function(a, b){ // sort collection in descending order
-    if (a.support < b.support){
-        return 1;
-    } else if (a.support > b.support){
-        return -1;
-    } else {
-        return 0;
-    }
-});
-console.log(fourFPs);
-
-
-
 // Inserts items from a list into the tree and adds new nodes to the lists in 
 // the header. Recursively calls FPTreeInsert until the list is empty.
 // Prams:
@@ -111,7 +155,6 @@ function FPTreeInsert(tree, track, node = tree.root){
         FPTreeInsert(tree, track, newNode);
     }
 }
-
 
 // ------------------------- FPGrowth* --------------------------------
 function FPGrowthPlus(tree){
@@ -321,29 +364,21 @@ function FPtreeTest(tree){
     }
 }
 
-function printTree(node, parent = node, level = -1){  
-    var indentation = "";
-    var heritage = "";
-    for (let i = 0; i < level; i++){
-        indentation += "    ";
-        if(level >= 2 && i > 0){
-            heritage += " great"
-        }
-    } 
-    if (level >= 1){
-        heritage += " grand"
-    } 
-    if (level >= 0 ) {
-        heritage += " child"
+function printTree(node, level = 0){
+    var branch = "";
+    for(i = 0; i < level; i++){
+        branch += "     ";
     }
+
+    process.stdout.write(branch);
+    console.log("node: " + node.model.item + "  Support: " + node.model.support);
     
-    console.log("")
-    console.log(indentation + "level:" + level + " " + heritage);
-    console.log(indentation + "node: " + node.model.item + "  Support: " + node.model.support);
+    
     if(node.hasChildren()){
         var inc = level + 1;
-        node.children.forEach(child => {
-            printTree(child, node, inc);
-        });
+        for(var i = 0; i < node.children.length; i++){
+            printTree(node.children[i], inc);
+        }
     }
 }
+
