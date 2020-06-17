@@ -19,7 +19,7 @@
   "dependencies": {
     "bluebird": "^3.5.1",
     "linkedlist": "^1.0.1",
-    "lodash": "^4.17.4",
+    "lodash": "^4.17.13",
     "spotify-web-api-node": "^2.5.0",
     "tree-model": "^1.0.6"
   }
